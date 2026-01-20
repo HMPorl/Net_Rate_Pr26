@@ -1,0 +1,23 @@
+# Net Rates Calculator - Price Increase 2026 Project Dependencies
+# Updated: 2026-01-20 - Forked from NET_RATES_V2 for price increase project
+
+# Web Framework
+streamlit>=1.28.0
+
+# Email Integration - CRITICAL FOR CLOUD DEPLOYMENT
+sendgrid>=6.10.0
+requests>=2.31.0
+
+# Data Processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# PDF Generation
+reportlab>=4.0.0
+PyMuPDF>=1.23.0
+
+# Image Processing
+Pillow>=10.0.0
+
+# Utilities
+python-dotenv>=1.0.0

@@ -1,0 +1,21 @@
+{
+  "smtp_settings": {
+    "provider": "",
+    "sendgrid_api_key": "",
+    "sendgrid_from_email": "",
+    "gmail_user": "",
+    "gmail_password": "",
+    "o365_user": "",
+    "o365_password": "",
+    "custom_server": "",
+    "custom_port": 587,
+    "custom_user": "",
+    "custom_password": "",
+    "custom_from": "",
+    "custom_use_tls": true
+  },
+  "admin_settings": {
+    "default_admin_email": "netrates@thehireman.co.uk",
+    "cc_emails": ""
+  }
+}
