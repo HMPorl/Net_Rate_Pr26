@@ -4,15 +4,21 @@ import pandas as pd
 import os
 import io
 import json
-
-# Import shared utilities
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils import (
-    initialize_session_state, ensure_dataframe_loaded, get_available_pdf_files,
-    TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES, SCRIPT_DIR, get_uk_time,
-    create_save_data, apply_loaded_data
-)
+
+# Add parent directory to path for imports
+if os.path.dirname(os.path.dirname(os.path.abspath(__file__))) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from utils import (
+        initialize_session_state, ensure_dataframe_loaded, get_available_pdf_files,
+        TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES, SCRIPT_DIR, get_uk_time,
+        create_save_data, apply_loaded_data
+    )
+except ImportError as e:
+    st.error(f"Import error: {e}")
+    st.stop()
 
 # Initialize session state
 initialize_session_state()
