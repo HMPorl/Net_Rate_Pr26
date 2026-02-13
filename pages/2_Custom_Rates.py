@@ -2,21 +2,13 @@
 import streamlit as st
 import pandas as pd
 import os
-import sys
 
-# Add parent directory to path for imports
-if os.path.dirname(os.path.dirname(os.path.abspath(__file__))) not in sys.path:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-try:
-    from utils import (
-        initialize_session_state, ensure_dataframe_loaded,
-        is_poa_value, get_numeric_price, format_price_display,
-        get_discounted_price, calculate_discount_percent
-    )
-except ImportError as e:
-    st.error(f"Import error: {e}")
-    st.stop()
+# Import shared utilities (Streamlit runs from project root)
+from utils import (
+    initialize_session_state, ensure_dataframe_loaded,
+    is_poa_value, get_numeric_price, format_price_display,
+    get_discounted_price, calculate_discount_percent
+)
 
 # Initialize session state
 initialize_session_state()

@@ -4,24 +4,16 @@ import pandas as pd
 import io
 import os
 import json
-import sys
 
-# Add parent directory to path for imports
-if os.path.dirname(os.path.dirname(os.path.abspath(__file__))) not in sys.path:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-try:
-    from utils import (
-        initialize_session_state, ensure_dataframe_loaded, get_uk_time,
-        format_price_display, format_price_for_export, format_custom_price_for_export,
-        format_discount_for_export, format_custom_price_for_display,
-        create_admin_dataframe, create_transport_dataframe, create_save_data,
-        TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES, SCRIPT_DIR,
-        SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, is_poa_value, calculate_discount_percent
-    )
-except ImportError as e:
-    st.error(f"Import error: {e}")
-    st.stop()
+# Import shared utilities (Streamlit runs from project root)
+from utils import (
+    initialize_session_state, ensure_dataframe_loaded, get_uk_time,
+    format_price_display, format_price_for_export, format_custom_price_for_export,
+    format_discount_for_export, format_custom_price_for_display,
+    create_admin_dataframe, create_transport_dataframe, create_save_data,
+    TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES, SCRIPT_DIR,
+    SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, is_poa_value, calculate_discount_percent
+)
 
 # Initialize session state
 initialize_session_state()
