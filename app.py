@@ -27,13 +27,9 @@ initialize_session_state()
 def authenticate():
     """Handle user authentication"""
     
-    # Try to get credentials from secrets or environment
-    try:
-        correct_username = st.secrets.get("auth", {}).get("username", "") or os.getenv("APP_USERNAME", "admin")
-        correct_pin = st.secrets.get("auth", {}).get("pin", "") or os.getenv("APP_PIN", "1234")
-    except Exception:
-        correct_username = os.getenv("APP_USERNAME", "admin")
-        correct_pin = os.getenv("APP_PIN", "1234")
+    # Hardcoded credentials (matching original app)
+    correct_username = "HM"
+    correct_pin = "1985"
     
     st.title("🔐 Net Rates Calculator - Access Required")
     st.markdown("### Please enter your credentials to access the calculator")
