@@ -1,6 +1,6 @@
-# Net Rates Calculator - Price Increase 2026 Project (Pr26)
-# Forked from NET_RATES_V2 for price increase testing
-# Created: January 20, 2026
+# Net Rates Calculator - Production Version
+# Enhanced features and improved architecture
+# Redeployment trigger - Sept 16, 2025
 
 import streamlit as st
 import pandas as pd
@@ -110,8 +110,8 @@ def save_config(config):
 # Streamlit Page Configuration
 # -------------------------------
 st.set_page_config(
-    page_title="Net Rates Calculator Pr26",
-    page_icon="📈",
+    page_title="Net Rates Calculator V2 with 2026 pricing",
+    page_icon="🚀",
     layout="wide"
 )
 
@@ -224,10 +224,13 @@ def apply_pending_custom_prices(df):
     try:
         pending_prices = st.session_state['pending_custom_prices']
         
-        # Clear ALL existing custom price keys first
+        # Clear ALL existing custom price keys first (both price_ and input_ keys)
         for key in list(st.session_state.keys()):
-            if key.startswith("price_"):
+            if key.startswith("price_") or key.startswith("input_"):
                 del st.session_state[key]
+        
+        # Also clear the pending_prices dictionary used by the fragment
+        st.session_state['pending_prices'] = {}
         
         # Create a reverse lookup dictionary for O(1) performance instead of O(n²)
         item_category_to_index = {}
@@ -248,7 +251,10 @@ def apply_pending_custom_prices(df):
             if item_category in item_category_to_index and price_value:
                 idx = item_category_to_index[item_category]
                 price_key = f"price_{idx}"
-                st.session_state[price_key] = str(price_value)
+                input_key = f"input_{idx}"  # Also set the input widget key
+                price_str = str(price_value)
+                st.session_state[price_key] = price_str
+                st.session_state[input_key] = price_str  # Widget key must match for display
                 prices_set += 1
         
         # Clear progress indicator and show success
@@ -400,7 +406,7 @@ def apply_syrinx_import(preview_data, global_discount):
         # Build pending prices from Syrinx data 
         matched_items = preview_data.get('matched', [])
         for item in matched_items:
-            item_category = str(item['item_category'])  # Use item_category for lookup
+            item_category = str(item['code'])  # Use code for lookup (matches process_syrinx_file output)
             special_price = item['special_price']
             
             if special_price and special_price != 'N/A':
@@ -643,7 +649,7 @@ def add_footer_logo(canvas, doc):
 # -------------------------------
 
 if not st.session_state.authenticated:
-    st.title("🔐 Net Rates Pr26 - Access Required")
+    st.title("🔐 Net Rates Calculator - Access Required")
     st.markdown("### Please enter your credentials to access the calculator")
     
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -674,8 +680,8 @@ if not st.session_state.authenticated:
 # -------------------------------
 # Main Application Header
 # -------------------------------
-st.markdown("# � Net Rates Calculator Pr26")
-st.markdown("*Price Increase 2026 Project - Test Environment*")
+st.markdown("# 🚀 Net Rates Calculator V2 with 2026 pricing")
+st.markdown("*Production Version - Enhanced Features*")
 st.markdown("---")
 
 # Built-in Help System
@@ -1090,20 +1096,26 @@ def generate_customer_pdf(df, customer_name, header_pdf_file, include_custom_tab
 
         logo_file = st.session_state.get('logo_file', None)
         if logo_file:
-            logo_image = Image.open(logo_file)
-            logo_bytes = io.BytesIO()
-            logo_image.save(logo_bytes, format="PNG")
-            logo_bytes.seek(0)
-            logo_width = 100
-            logo_height = logo_image.height * (logo_width / logo_image.width)
-            logo_x = (page_width - logo_width) / 2
-            bespoke_email = st.session_state.get('bespoke_email', '')
-            if bespoke_email and bespoke_email.strip():
-                logo_y = text_y + font_size + 13 + 20
-            else:
-                logo_y = text_y + font_size + 20
-            rect_logo = fitz.Rect(logo_x, logo_y, logo_x + logo_width, logo_y + logo_height)
-            page1.insert_image(rect_logo, stream=logo_bytes.read())
+            try:
+                # Reset file pointer in case it was read before
+                logo_file.seek(0)
+                logo_image = Image.open(logo_file)
+                logo_bytes = io.BytesIO()
+                logo_image.save(logo_bytes, format="PNG")
+                logo_bytes.seek(0)
+                logo_width = 100
+                logo_height = logo_image.height * (logo_width / logo_image.width)
+                logo_x = (page_width - logo_width) / 2
+                bespoke_email = st.session_state.get('bespoke_email', '')
+                if bespoke_email and bespoke_email.strip():
+                    logo_y = text_y + font_size + 13 + 20
+                else:
+                    logo_y = text_y + font_size + 20
+                rect_logo = fitz.Rect(logo_x, logo_y, logo_x + logo_width, logo_y + logo_height)
+                page1.insert_image(rect_logo, stream=logo_bytes.read())
+            except Exception as e:
+                # Logo failed to load, continue without it
+                pass
 
         # Draw Transport Charges table on page 3
         page3 = header_pdf[2]
@@ -1558,6 +1570,14 @@ if "bespoke_email" not in st.session_state:
 bespoke_email = st.text_input("⭐ Bespoke email address (optional)", key="bespoke_email")
 logo_file = st.file_uploader("⭐Upload Company Logo", type=["png", "jpg", "jpeg"])
 
+# Store logo file in session state so it's accessible in PDF generation
+if logo_file is not None:
+    st.session_state['logo_file'] = logo_file
+elif 'logo_file' in st.session_state and logo_file is None:
+    # Keep existing logo if user hasn't cleared it
+    # Only clear if they explicitly removed it (file uploader returns None when cleared)
+    pass
+
 # Toggle for admin options (hide by default)
 show_admin_uploads = st.toggle("Show Admin Upload Options", value=False)
 
@@ -1711,9 +1731,14 @@ elif header_pdf_choice != "(Select Sales Person)":
 
 if df is not None and header_pdf_file:
     required_columns = {"ItemCategory", "EquipmentName", "HireRateWeekly", "GroupName", "Sub Section", "Max Discount", "Include", "Order"}
+    optional_columns = {"ExcludeFromGlobalDiscount"}  # Optional columns for advanced features
     if not required_columns.issubset(df.columns):
         st.error(f"Excel file must contain the following columns: {', '.join(required_columns)}")
         st.stop()
+    
+    # Add ExcludeFromGlobalDiscount column with default False if not present
+    if "ExcludeFromGlobalDiscount" not in df.columns:
+        df["ExcludeFromGlobalDiscount"] = False
 
     # -------------------------------
     # Filter and Sort Data
@@ -1739,27 +1764,53 @@ if df is not None and header_pdf_file:
     # Process bulk discount updates BEFORE creating widgets
     # -------------------------------
     
+    # Build set of excluded group/subsection combinations (where any item has ExcludeFromGlobalDiscount=True)
+    excluded_groups = set()
+    for (group, subsection), group_df in grouped_df:
+        if group_df["ExcludeFromGlobalDiscount"].any():
+            excluded_groups.add((group, subsection))
+    
     # Process "Set All Groups to Global Discount" action
     if st.session_state.get('set_all_groups_to_global', False):
         st.session_state['set_all_groups_to_global'] = False  # Clear the trigger
         
         global_discount_to_apply = st.session_state.get('global_discount', 0.0)
+        applied_count = 0
+        skipped_count = 0
         for group, subsection in group_keys:
             discount_key = f"{group}_{subsection}_discount"
-            st.session_state[discount_key] = global_discount_to_apply
+            if (group, subsection) in excluded_groups:
+                st.session_state[discount_key] = 0.0  # Keep excluded groups at 0%
+                skipped_count += 1
+            else:
+                st.session_state[discount_key] = global_discount_to_apply
+                applied_count += 1
         
-        st.success(f"✅ All group discounts set to {global_discount_to_apply}%")
+        if skipped_count > 0:
+            st.success(f"✅ {applied_count} groups set to {global_discount_to_apply}% ({skipped_count} excluded groups kept at 0%)")
+        else:
+            st.success(f"✅ All group discounts set to {global_discount_to_apply}%")
     
     # Process "Update Group Discounts Only" action
     if st.session_state.get('update_group_discounts_only', False):
         st.session_state['update_group_discounts_only'] = False  # Clear the trigger
         
         global_discount_to_apply = st.session_state.get('global_discount', 0.0)
+        applied_count = 0
+        skipped_count = 0
         for group, subsection in group_keys:
             discount_key = f"{group}_{subsection}_discount"
-            st.session_state[discount_key] = global_discount_to_apply
+            if (group, subsection) in excluded_groups:
+                st.session_state[discount_key] = 0.0  # Keep excluded groups at 0%
+                skipped_count += 1
+            else:
+                st.session_state[discount_key] = global_discount_to_apply
+                applied_count += 1
         
-        st.success(f"✅ Group discounts updated to {global_discount_to_apply}% (custom prices preserved)")
+        if skipped_count > 0:
+            st.success(f"✅ {applied_count} groups updated to {global_discount_to_apply}% ({skipped_count} excluded groups kept at 0%, custom prices preserved)")
+        else:
+            st.success(f"✅ Group discounts updated to {global_discount_to_apply}% (custom prices preserved)")
     
     # Process "Update All & Clear Custom Prices" action
     if st.session_state.get('update_all_and_clear_custom', False):
@@ -1768,20 +1819,36 @@ if df is not None and header_pdf_file:
         global_discount_to_apply = st.session_state.get('global_discount', 0.0)
         group_keys = list(df.groupby(["GroupName", "Sub Section"]).groups.keys())
         
-        # Update group discounts
+        # Update group discounts (respecting exclusions)
+        applied_count = 0
+        skipped_count = 0
         for group, subsection in group_keys:
             discount_key = f"{group}_{subsection}_discount"
-            st.session_state[discount_key] = global_discount_to_apply
+            if (group, subsection) in excluded_groups:
+                st.session_state[discount_key] = 0.0  # Keep excluded groups at 0%
+                skipped_count += 1
+            else:
+                st.session_state[discount_key] = global_discount_to_apply
+                applied_count += 1
         
-        # Clear all custom prices
+        # Clear all custom prices (both price_ and input_ keys)
         cleared_count = 0
         for idx, row in df.iterrows():
             price_key = f"price_{idx}"
+            input_key = f"input_{idx}"
             if st.session_state.get(price_key, "").strip():
                 st.session_state[price_key] = ""
                 cleared_count += 1
+            if input_key in st.session_state:
+                st.session_state[input_key] = ""
         
-        st.success(f"✅ All discounts updated to {global_discount_to_apply}% and {cleared_count} custom prices cleared")
+        # Clear pending prices from fragment
+        st.session_state['pending_prices'] = {}
+        
+        if skipped_count > 0:
+            st.success(f"✅ {applied_count} groups updated to {global_discount_to_apply}% ({skipped_count} excluded groups kept at 0%) and {cleared_count} custom prices cleared")
+        else:
+            st.success(f"✅ All discounts updated to {global_discount_to_apply}% and {cleared_count} custom prices cleared")
     
     # Process "Clear All Custom Prices" action
     if st.session_state.get('clear_all_custom_prices', False):
@@ -1790,9 +1857,15 @@ if df is not None and header_pdf_file:
         cleared_count = 0
         for idx, row in df.iterrows():
             price_key = f"price_{idx}"
+            input_key = f"input_{idx}"
             if st.session_state.get(price_key, "").strip():
                 st.session_state[price_key] = ""
                 cleared_count += 1
+            if input_key in st.session_state:
+                st.session_state[input_key] = ""
+        
+        # Clear pending prices from fragment
+        st.session_state['pending_prices'] = {}
         
         st.success(f"✅ Cleared {cleared_count} custom prices")
 
@@ -1845,6 +1918,8 @@ if df is not None and header_pdf_file:
     # Group-Level Discounts in expandable section (rarely used)
     with st.expander("🎛️ Group-Level Discounts (Advanced)", expanded=False):
         st.markdown("**Configure individual discount rates for each equipment group:**")
+        if excluded_groups:
+            st.info(f"🔒 {len(excluded_groups)} group(s) excluded from global discount (marked in Excel). You can still set custom prices for individual items.")
         
         group_discount_keys = {}
 
@@ -1853,15 +1928,21 @@ if df is not None and header_pdf_file:
             col = cols[i % 3]  # Fill down each column
             with col:
                 discount_key = f"{group}_{subsection}_discount"
+                is_excluded = (group, subsection) in excluded_groups
                 # Initialize session state if key doesn't exist (avoids widget/session state conflict)
                 if discount_key not in st.session_state:
-                    st.session_state[discount_key] = global_discount
+                    # Excluded groups default to 0%, others to global discount
+                    st.session_state[discount_key] = 0.0 if is_excluded else global_discount
+                
+                # Add lock icon to label for excluded groups
+                label = f"🔒 {group} - {subsection} (%)" if is_excluded else f"{group} - {subsection} (%)"
                 st.number_input(
-                    f"{group} - {subsection} (%)",
+                    label,
                     min_value=0.0,
                     max_value=100.0,
                     step=0.01,
-                    key=discount_key
+                    key=discount_key,
+                    help="Excluded from global discount updates (set in Excel)" if is_excluded else None
                 )
 
 
@@ -1907,22 +1988,34 @@ if df is not None and header_pdf_file:
     # -------------------------------
     st.markdown("### Adjust Prices by Group and Sub Section")
     
-    # Add option to keep sections expanded while editing
-    col_btn1, col_btn2, col_btn3 = st.columns(3)
-    with col_btn1:
-        if st.button("🔓 Force Expand All"):
+    # Initialize pending prices storage for live preview
+    if 'pending_prices' not in st.session_state:
+        st.session_state.pending_prices = {}
+    
+    # Controls row (expand/collapse and legend - these don't need live updates)
+    col_expand, col_collapse, col_legend, col_spacer = st.columns([2, 2, 2, 4])
+    
+    with col_expand:
+        if st.button("🔓 Expand All", use_container_width=True):
             st.session_state.keep_expanded = True
-    with col_btn2:
-        if st.button("🔒 Auto-Expand Only"):
+            st.rerun()
+    
+    with col_collapse:
+        if st.button("🔒 Collapse", use_container_width=True):
             st.session_state.keep_expanded = False
-    with col_btn3:
-        # Add legend for visual indicators
+            st.rerun()
+    
+    with col_legend:
         with st.popover("📖 Legend & Tips"):
             st.markdown("**🎯 Custom Price:** You've entered a specific price")
             st.markdown("**📊 Calculated Price:** Based on group discount")
             st.markdown("**⚠️ Warning:** Exceeds max discount or invalid input")
+            st.markdown("**✏️ Pending:** Change not yet applied")
             st.markdown("---")
-            st.markdown("**💡 Tip:** Sections with custom prices auto-expand and stay open!")
+            st.markdown("**💡 Workflow Tips:**")
+            st.markdown("1. Open sections and enter your prices")
+            st.markdown("2. Live preview shows discount % as you type")
+            st.markdown("3. Click **Apply All Changes** when ready")
     
     # Check if we should keep sections expanded
     keep_expanded = st.session_state.get("keep_expanded", False)
@@ -1934,99 +2027,184 @@ if df is not None and header_pdf_file:
         if price_key not in st.session_state:
             st.session_state[price_key] = ""
     
-    # Group the data for better organization
-    grouped_df = df.groupby(["GroupName", "Sub Section"])
-    
-    for (group, subsection), group_df in grouped_df:
-        # Check if this group has any custom prices
-        has_custom_in_group = any(
-            st.session_state.get(f"price_{idx}", "").strip() 
-            for idx in group_df.index
-        )
+    # Define the pricing fragment - only this section reruns on input changes
+    @st.fragment
+    def pricing_fragment():
+        # Count pending changes (inside fragment so it updates with each keystroke)
+        def count_pending_changes():
+            count = 0
+            for key, pending_val in st.session_state.pending_prices.items():
+                saved_val = st.session_state.get(key, "")
+                if pending_val != saved_val:
+                    count += 1
+            return count
         
-        # Add target emoji to header if group contains custom prices
-        header_text = f"{group} - {subsection}"
-        if has_custom_in_group:
-            header_text += " 🎯"
+        # Group the data for better organization
+        grouped_df = df.groupby(["GroupName", "Sub Section"])
         
-        # Auto-expand sections that have custom prices OR if global expand is enabled
-        should_expand = keep_expanded or has_custom_in_group
-        
-        with st.expander(header_text, expanded=should_expand):
-            for idx, row in group_df.iterrows():
-                discounted_price = get_discounted_price(row)
-                price_key = f"price_{idx}"
+        for (group, subsection), group_df in grouped_df:
+            # Check if this group has any custom prices (saved or pending)
+            has_custom_in_group = any(
+                st.session_state.pending_prices.get(f"price_{idx}", st.session_state.get(f"price_{idx}", "")).strip() 
+                for idx in group_df.index
+            )
+            
+            # Check if this group has pending changes
+            has_pending_in_group = any(
+                st.session_state.pending_prices.get(f"price_{idx}", "") != st.session_state.get(f"price_{idx}", "")
+                for idx in group_df.index
+                if f"price_{idx}" in st.session_state.pending_prices
+            )
+            
+            # Add emoji to header if group contains custom prices or pending changes
+            header_text = f"{group} - {subsection}"
+            if has_pending_in_group:
+                header_text += " ✏️"
+            elif has_custom_in_group:
+                header_text += " 🎯"
+            
+            # Auto-expand sections that have custom prices OR if global expand is enabled
+            should_expand = keep_expanded or has_custom_in_group
+            
+            with st.expander(header_text, expanded=should_expand):
+                for idx, row in group_df.iterrows():
+                    discounted_price = get_discounted_price(row)
+                    price_key = f"price_{idx}"
+                    
+                    # Get the value to display: pending > saved > empty
+                    if price_key in st.session_state.pending_prices:
+                        current_value = st.session_state.pending_prices[price_key]
+                    else:
+                        current_value = st.session_state.get(price_key, "")
 
-                col1, col2, col3, col4, col5 = st.columns([2, 4, 2, 3, 3])
-                with col1:
-                    st.write(row["ItemCategory"])
-                with col2:
-                    st.write(row["EquipmentName"])
-                with col3:
-                    # Display calculated price or POA
-                    if discounted_price == "POA":
-                        st.write("POA")
-                    else:
-                        st.write(f"£{discounted_price:.2f}")
-                with col4:
-                    # Check if user has a custom price
-                    user_input = st.session_state.get(price_key, "").strip()
-                    has_custom_price = bool(user_input)
-                    
-                    # Input field with status-aware placeholder and label
-                    if has_custom_price:
-                        placeholder_text = "Custom price active"
-                        help_text = "🎯 Custom price set - overrides group discount"
-                    else:
-                        placeholder_text = "Enter Special Rate or POA"
-                        help_text = "💡 Leave empty to use group discount calculation"
-                    
-                    st.text_input("", key=price_key, label_visibility="collapsed", 
-                                placeholder=placeholder_text, help=help_text)
-                with col5:
-                    # Handle custom price input (numeric or POA)
-                    user_input = st.session_state.get(price_key, "").strip()
-                    
-                    if user_input:
-                        # User entered something
-                        if is_poa_value(user_input):
-                            # User entered POA
-                            custom_price = "POA"
-                            discount_percent = "POA"
-                            st.markdown("**POA**")
+                    col1, col2, col3, col4, col5 = st.columns([2, 4, 2, 3, 3])
+                    with col1:
+                        st.write(row["ItemCategory"])
+                    with col2:
+                        st.write(row["EquipmentName"])
+                    with col3:
+                        # Display calculated price or POA
+                        if discounted_price == "POA":
+                            st.write("POA")
                         else:
-                            # User entered a number
-                            try:
-                                custom_price = float(user_input)
-                                discount_percent = calculate_discount_percent(row["HireRateWeekly"], custom_price)
-                                
-                                if discount_percent == "POA":
-                                    st.markdown("**POA** 🎯")
-                                else:
-                                    # Check max discount only for numeric values
-                                    orig_numeric = get_numeric_price(row["HireRateWeekly"])
-                                    if orig_numeric and discount_percent > row["Max Discount"]:
-                                        st.markdown(f"**{discount_percent:.2f}%** 🎯⚠️")
-                                    else:
-                                        st.markdown(f"**{discount_percent:.2f}%** 🎯")
-                            except ValueError:
-                                # Invalid input - treat as POA
+                            st.write(f"£{discounted_price:.2f}")
+                    with col4:
+                        # Check if user has a custom price
+                        has_custom_price = bool(current_value.strip()) if current_value else False
+                        
+                        # Input field with status-aware placeholder and label
+                        if has_custom_price:
+                            placeholder_text = "Custom price active"
+                            help_text = "🎯 Custom price set - overrides group discount"
+                        else:
+                            placeholder_text = "Enter Special Rate or POA"
+                            help_text = "💡 Leave empty to use group discount calculation"
+                        
+                        # Regular text input - fragment ensures fast rerun
+                        new_value = st.text_input(
+                            "", 
+                            value=current_value,
+                            key=f"input_{idx}", 
+                            label_visibility="collapsed", 
+                            placeholder=placeholder_text, 
+                            help=help_text
+                        )
+                        
+                        # Store in pending if different from saved
+                        saved_value = st.session_state.get(price_key, "")
+                        if new_value != saved_value:
+                            st.session_state.pending_prices[price_key] = new_value
+                        elif price_key in st.session_state.pending_prices:
+                            # Remove from pending if reverted to saved value
+                            del st.session_state.pending_prices[price_key]
+                    
+                    with col5:
+                        # Live preview: use pending value if exists, otherwise saved
+                        preview_value = st.session_state.pending_prices.get(price_key, saved_value)
+                        user_input = preview_value.strip() if preview_value else ""
+                        
+                        # Check if this is a pending change
+                        is_pending = price_key in st.session_state.pending_prices and st.session_state.pending_prices[price_key] != saved_value
+                        pending_indicator = " ✏️" if is_pending else ""
+                        
+                        if user_input:
+                            # User entered something
+                            if is_poa_value(user_input):
                                 custom_price = "POA"
                                 discount_percent = "POA"
-                                st.markdown("**POA** 🎯⚠️")
-                    else:
-                        # No user input - use calculated price
-                        custom_price = discounted_price
-                        discount_percent = calculate_discount_percent(row["HireRateWeekly"], custom_price)
-                        
-                        if discount_percent == "POA":
-                            st.markdown("**POA** 📊")
+                                st.markdown(f"**POA** 🎯{pending_indicator}")
+                            else:
+                                try:
+                                    custom_price = float(user_input)
+                                    discount_percent = calculate_discount_percent(row["HireRateWeekly"], custom_price)
+                                    
+                                    if discount_percent == "POA":
+                                        st.markdown(f"**POA** 🎯{pending_indicator}")
+                                    else:
+                                        orig_numeric = get_numeric_price(row["HireRateWeekly"])
+                                        if orig_numeric and discount_percent > row["Max Discount"]:
+                                            st.markdown(f"**{discount_percent:.2f}%** 🎯⚠️{pending_indicator}")
+                                        else:
+                                            st.markdown(f"**{discount_percent:.2f}%** 🎯{pending_indicator}")
+                                except ValueError:
+                                    custom_price = "POA"
+                                    discount_percent = "POA"
+                                    st.markdown(f"**POA** 🎯⚠️{pending_indicator}")
                         else:
-                            st.markdown(f"**{discount_percent:.2f}%** 📊")
+                            # No user input - use calculated price
+                            custom_price = discounted_price
+                            discount_percent = calculate_discount_percent(row["HireRateWeekly"], custom_price)
+                            
+                            if discount_percent == "POA":
+                                st.markdown("**POA** 📊")
+                            else:
+                                st.markdown(f"**{discount_percent:.2f}%** 📊")
 
-                # Store the final values
-                df.at[idx, "CustomPrice"] = custom_price
-                df.at[idx, "DiscountPercent"] = discount_percent
+                        # Store the final values for export (use SAVED values, not pending)
+                        # This ensures exports only include applied changes
+                        saved_input = saved_value.strip() if saved_value else ""
+                        if saved_input:
+                            if is_poa_value(saved_input):
+                                df.at[idx, "CustomPrice"] = "POA"
+                                df.at[idx, "DiscountPercent"] = "POA"
+                            else:
+                                try:
+                                    df.at[idx, "CustomPrice"] = float(saved_input)
+                                    df.at[idx, "DiscountPercent"] = calculate_discount_percent(row["HireRateWeekly"], float(saved_input))
+                                except ValueError:
+                                    df.at[idx, "CustomPrice"] = "POA"
+                                    df.at[idx, "DiscountPercent"] = "POA"
+                        else:
+                            df.at[idx, "CustomPrice"] = discounted_price
+                            df.at[idx, "DiscountPercent"] = calculate_discount_percent(row["HireRateWeekly"], discounted_price)
+        
+        # Apply/Discard buttons at the end of the fragment (updates with each keystroke)
+        st.markdown("---")
+        pending_count = count_pending_changes()
+        apply_disabled = pending_count == 0
+        
+        col_apply, col_discard, col_spacer = st.columns([2, 2, 6])
+        
+        with col_apply:
+            if st.button(f"✅ Apply All Changes ({pending_count})", type="primary", disabled=apply_disabled, use_container_width=True):
+                # Copy all pending values to session state
+                applied_count = 0
+                for key, value in st.session_state.pending_prices.items():
+                    if st.session_state.get(key, "") != value:
+                        st.session_state[key] = value
+                        applied_count += 1
+                st.session_state.pending_prices = {}  # Clear pending
+                st.success(f"✅ Applied {applied_count} price change(s)")
+                st.rerun()
+        
+        with col_discard:
+            if st.button("🗑️ Discard Changes", disabled=apply_disabled, use_container_width=True):
+                st.session_state.pending_prices = {}
+                st.info("Changes discarded")
+                st.rerun()
+    
+    # Run the pricing fragment
+    pricing_fragment()
 
     # -------------------------------
     # Final Price List Display
@@ -2277,7 +2455,7 @@ with st.expander("🔧 Admin Dashboard & Integration Settings"):
 
 # Footer
 st.markdown("---")
-st.markdown("*Net Rates Calculator Pr26 - Price Increase 2026 Project - The Hireman*")
+st.markdown("*Net Rates Calculator v2.0 - The Hireman*")
 
 # Sidebar for Load Progress and other actions
 with st.sidebar:
@@ -2539,6 +2717,29 @@ with st.sidebar:
             help="Please enter a customer name and ensure data is loaded"
         )
     
+    # PDF Options (checkboxes to control special rates) - MUST be before PDF generation
+    st.markdown("#### 📄 PDF Options")
+    st.checkbox(
+        "Include Special Rates?", 
+        value=st.session_state.get('include_custom_table_sidebar', True),
+        key="include_custom_table_sidebar",
+        help="Add a special rates table at the beginning of the PDF"
+    )
+    st.checkbox(
+        "Separate Special Rates?", 
+        value=st.session_state.get('special_rates_pagebreak_sidebar', False),
+        key="special_rates_pagebreak_sidebar",
+        help="Put special rates table on a separate page"
+    )
+    st.number_input(
+        "Extra Spacing after Special Rates", 
+        min_value=0, 
+        max_value=20, 
+        value=st.session_state.get('special_rates_spacing_sidebar', 0),
+        key="special_rates_spacing_sidebar",
+        help="Add blank lines between Special Rates and Main Price List to improve pagination"
+    )
+    
     # PDF Download (immediate generation)
     if customer_name and not df.empty and header_pdf_file:
         # Get PDF options from session state
@@ -2587,197 +2788,203 @@ with st.sidebar:
             help="Please enter customer name, load data, and select PDF header"
         )
 
-    # PDF Options (checkboxes to control special rates)
-    st.markdown("#### 📄 PDF Options")
-    include_custom_table_sidebar = st.checkbox(
-        "Include Special Rates?", 
-        value=st.session_state.get('include_custom_table_sidebar', st.session_state.get('include_custom_table', True)),
-        key="include_custom_table_sidebar",
-        help="Add a special rates table at the beginning of the PDF"
-    )
-    special_rates_pagebreak_sidebar = st.checkbox(
-        "Separate Special Rates?", 
-        value=st.session_state.get('special_rates_pagebreak_sidebar', st.session_state.get('special_rates_pagebreak', False)),
-        key="special_rates_pagebreak_sidebar",
-        help="Put special rates table on a separate page"
-    )
-    special_rates_spacing_sidebar = st.number_input(
-        "Extra Spacing after Special Rates", 
-        min_value=0, 
-        max_value=20, 
-        value=st.session_state.get('special_rates_spacing_sidebar', st.session_state.get('special_rates_spacing', 0)),
-        key="special_rates_spacing_sidebar",
-        help="Add blank lines between Special Rates and Main Price List to improve pagination"
-    )
-
-    # Email Section
-    st.markdown("### 📧 Email Options")
-    
-    # Show email configuration status
-    config = st.session_state.get('config', {})
-    smtp_config = load_config().get('smtp', {})
-    smtp_settings = config.get("smtp_settings", {})
-    saved_sendgrid_key = smtp_settings.get("sendgrid_api_key", "")
-    
-    # Email recipient selection
-    email_options = {
-        "Authorise": "netratesauth@thehireman.co.uk",
-        "Accounts": "netrates@thehireman.co.uk",
-        "CRM": "netratescrm@thehireman.co.uk",
-        "Custom Email": "custom"
-    }
-    
-    email_choice = st.selectbox(
-        "Send To:",
-        list(email_options.keys()),
-        help="Select recipient or choose Custom Email to enter your own"
-    )
-    
-    # Handle custom email input
-    if email_choice == "Custom Email":
-        recipient_email = st.text_input(
-            "Enter Email Address:",
-            placeholder="example@company.com",
-            help="Enter the recipient's email address"
-        )
-    else:
-        recipient_email = email_options[email_choice]
-        st.info(f"📧 Sending to: {recipient_email}")
-    
-    # CC field
-    cc_email = st.text_input(
-        "CC (Optional):",
-        placeholder="additional@company.com",
-        help="Add additional recipients (separate multiple emails with commas)"
-    )
-    
-    # PDF attachment checkbox
-    add_pdf_attachment = st.checkbox(
-        "📄 Add PDF", 
-        value=False,
-        help="Include PDF quote as email attachment"
-    )
-    
-    # Send email button
-    if st.button("📤 Send Email", use_container_width=True, help="Send price list via email"):
-        customer_name = st.session_state.get('customer_name', '')
-        df = st.session_state.get('df', pd.DataFrame())
-        global_discount = st.session_state.get('global_discount', 0)
+    # Email Section - wrapped in fragment to prevent full rerun on input changes
+    @st.fragment
+    def email_options_fragment():
+        st.markdown("### 📧 Email Options")
         
-        if not customer_name:
-            st.error("Please enter a customer name first")
-        elif not recipient_email or (email_choice == "Custom Email" and not recipient_email.strip()):
-            st.error("Please select or enter a valid email address")
-        elif df.empty:
-            st.error("Please load data first")
+        # Initialize email settings in session state if not present
+        if 'email_choice' not in st.session_state:
+            st.session_state.email_choice = "Authorise"
+        if 'custom_recipient_email' not in st.session_state:
+            st.session_state.custom_recipient_email = ""
+        if 'cc_email' not in st.session_state:
+            st.session_state.cc_email = ""
+        if 'add_pdf_attachment' not in st.session_state:
+            st.session_state.add_pdf_attachment = False
+        
+        # Email recipient selection
+        email_options = {
+            "Authorise": "netratesauth@thehireman.co.uk",
+            "Accounts": "netrates@thehireman.co.uk",
+            "CRM": "netratescrm@thehireman.co.uk",
+            "Custom Email": "custom"
+        }
+        
+        email_choice = st.selectbox(
+            "Send To:",
+            list(email_options.keys()),
+            key="email_choice",
+            help="Select recipient or choose Custom Email to enter your own"
+        )
+        
+        # Handle custom email input
+        if email_choice == "Custom Email":
+            st.text_input(
+                "Enter Email Address:",
+                placeholder="example@company.com",
+                key="custom_recipient_email",
+                help="Enter the recipient's email address"
+            )
         else:
-            # Get configurations
-            smtp_config = load_config().get('smtp', {})
+            recipient_email = email_options[email_choice]
+            st.info(f"📧 Sending to: {recipient_email}")
+        
+        # CC field
+        st.text_input(
+            "CC (Optional):",
+            placeholder="additional@company.com",
+            key="cc_email",
+            help="Add additional recipients (separate multiple emails with commas)"
+        )
+        
+        # PDF attachment checkbox
+        st.checkbox(
+            "📄 Add PDF", 
+            value=False,
+            key="add_pdf_attachment",
+            help="Include PDF quote as email attachment"
+        )
+        
+        # Send email button
+        if st.button("📤 Send Email", use_container_width=True, help="Send price list via email"):
+            # Get values from session state
+            email_choice = st.session_state.get('email_choice', 'Authorise')
+            email_options_map = {
+                "Authorise": "netratesauth@thehireman.co.uk",
+                "Accounts": "netrates@thehireman.co.uk",
+                "CRM": "netratescrm@thehireman.co.uk",
+                "Custom Email": "custom"
+            }
             
-            # Prepare admin DataFrame with pricing (same format as main body)
-            admin_df = df[[
-                "ItemCategory", "EquipmentName", "HireRateWeekly", 
-                "CustomPrice", "DiscountPercent", "GroupName", "Sub Section"
-            ]].copy()
+            if email_choice == "Custom Email":
+                recipient_email = st.session_state.get('custom_recipient_email', '')
+            else:
+                recipient_email = email_options_map[email_choice]
             
-            # Format values for export using standardized functions
-            admin_df["HireRateWeekly"] = admin_df["HireRateWeekly"].apply(format_price_for_export)
-            admin_df["CustomPrice"] = admin_df["CustomPrice"].apply(format_custom_price_for_export)
-            admin_df["DiscountPercent"] = admin_df["DiscountPercent"].apply(format_discount_for_export)
+            cc_email = st.session_state.get('cc_email', '')
+            add_pdf_attachment = st.session_state.get('add_pdf_attachment', False)
             
-            admin_df.columns = [
-                "Item Category", "Equipment Name", "Original Price (£)", 
-                "Net Price (£)", "Discount %", "Group", "Sub Section"
-            ]
-            admin_df["Customer Name"] = customer_name
-            admin_df["Date Created"] = get_uk_time().strftime("%Y-%m-%d %H:%M")
+            customer_name = st.session_state.get('customer_name', '')
+            df = st.session_state.get('df', pd.DataFrame())
+            global_discount = st.session_state.get('global_discount', 0)
             
-            # Reorder columns for admin convenience
-            admin_df = admin_df[[
-                "Customer Name", "Date Created", "Item Category", "Equipment Name", 
-                "Original Price (£)", "Net Price (£)", "Discount %", "Group", "Sub Section"
-            ]]
-            
-            # Create transport charges DataFrame using proper UI transport types
-            transport_inputs = []
-            for i, (transport_type, default_value) in enumerate(zip(TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES)):
-                charge = st.session_state.get(f"transport_{i}", default_value)
-                if charge:  # Only include if there's a value
-                    transport_inputs.append({
-                        "Delivery or Collection type": transport_type,
-                        "Charge (£)": charge
-                    })
-            transport_df = pd.DataFrame(transport_inputs)
-            
-            try:
-                with st.spinner("📧 Sending email..."):
-                    # Generate PDF attachment if requested
-                    pdf_attachment_data = None
-                    if add_pdf_attachment:
-                        with st.spinner("📄 Generating PDF..."):
-                            # Use the shared PDF generation function (single source of truth)
-                            include_custom_table = st.session_state.get('include_custom_table_sidebar', st.session_state.get('include_custom_table', True))
-                            special_rates_pagebreak = st.session_state.get('special_rates_pagebreak_sidebar', st.session_state.get('special_rates_pagebreak', False))
-                            special_rates_spacing = st.session_state.get('special_rates_spacing_sidebar', st.session_state.get('special_rates_spacing', 0))
-                            
-                            header_pdf_file = st.session_state.get('header_pdf_file', None)
-                            if header_pdf_file:
-                                pdf_attachment_data = generate_customer_pdf(
-                                    df=df,
-                                    customer_name=customer_name,
-                                    header_pdf_file=header_pdf_file,
-                                    include_custom_table=include_custom_table,
-                                    special_rates_pagebreak=special_rates_pagebreak,
-                                    special_rates_spacing=special_rates_spacing
-                                )
-                            else:
-                                st.warning("⚠️ No PDF header file selected. PDF attachment will not be included.")
-                    
-                    # Get email configuration (same as main body)
-                    config = st.session_state.get('config', {})
-                    smtp_settings = config.get("smtp_settings", {})
-                    saved_sendgrid_key = smtp_settings.get("sendgrid_api_key", "")
-                    
-                    # Try SendGrid first, then SMTP fallback
-                    if (smtp_config.get('enabled', False) and smtp_config.get('provider') == 'SendGrid') or saved_sendgrid_key or SENDGRID_API_KEY:
-                        result = send_email_via_sendgrid_api(
-                            customer_name,
-                            admin_df,
-                            transport_df,
-                            recipient_email,
-                            cc_email if cc_email and cc_email.strip() else None,
-                            global_discount,
-                            df,  # Pass original DataFrame
-                            st.session_state.get('header_pdf_choice', None),  # Get from session state
-                            pdf_attachment_data  # Add PDF attachment
-                        )
-                    else:
-                        result = send_email_with_pricelist(
-                            customer_name,
-                            admin_df,
-                            transport_df,
-                            recipient_email,
-                            smtp_config if smtp_config.get('enabled', False) else None,
-                            cc_email if cc_email and cc_email.strip() else None,
-                            global_discount,
-                            df,  # Pass original DataFrame
-                            st.session_state.get('header_pdf_choice', None),  # Get from session state
-                            pdf_attachment_data  # Add PDF attachment
-                        )
-                    
-                    if result['status'] == 'sent':
-                        st.success(f"✅ Email sent successfully to {recipient_email}!")
-                        if cc_email:
-                            st.info(f"📧 CC: {cc_email}")
-                        st.balloons()
-                    elif result['status'] == 'saved':
-                        st.success("✅ Email data prepared successfully!")
-                        st.info("💡 Check your email configuration to enable sending")
-                    else:
-                        st.error(f"❌ Email failed: {result.get('message', 'Unknown error')}")
+            if not customer_name:
+                st.error("Please enter a customer name first")
+            elif not recipient_email or (email_choice == "Custom Email" and not recipient_email.strip()):
+                st.error("Please select or enter a valid email address")
+            elif df.empty:
+                st.error("Please load data first")
+            else:
+                # Get configurations
+                smtp_config = load_config().get('smtp', {})
+                
+                # Prepare admin DataFrame with pricing (same format as main body)
+                admin_df = df[[
+                    "ItemCategory", "EquipmentName", "HireRateWeekly", 
+                    "CustomPrice", "DiscountPercent", "GroupName", "Sub Section"
+                ]].copy()
+                
+                # Format values for export using standardized functions
+                admin_df["HireRateWeekly"] = admin_df["HireRateWeekly"].apply(format_price_for_export)
+                admin_df["CustomPrice"] = admin_df["CustomPrice"].apply(format_custom_price_for_export)
+                admin_df["DiscountPercent"] = admin_df["DiscountPercent"].apply(format_discount_for_export)
+                
+                admin_df.columns = [
+                    "Item Category", "Equipment Name", "Original Price (£)", 
+                    "Net Price (£)", "Discount %", "Group", "Sub Section"
+                ]
+                admin_df["Customer Name"] = customer_name
+                admin_df["Date Created"] = get_uk_time().strftime("%Y-%m-%d %H:%M")
+                
+                # Reorder columns for admin convenience
+                admin_df = admin_df[[
+                    "Customer Name", "Date Created", "Item Category", "Equipment Name", 
+                    "Original Price (£)", "Net Price (£)", "Discount %", "Group", "Sub Section"
+                ]]
+                
+                # Create transport charges DataFrame using proper UI transport types
+                transport_inputs = []
+                for i, (transport_type, default_value) in enumerate(zip(TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES)):
+                    charge = st.session_state.get(f"transport_{i}", default_value)
+                    if charge:  # Only include if there's a value
+                        transport_inputs.append({
+                            "Delivery or Collection type": transport_type,
+                            "Charge (£)": charge
+                        })
+                transport_df = pd.DataFrame(transport_inputs)
+                
+                try:
+                    with st.spinner("📧 Sending email..."):
+                        # Generate PDF attachment if requested
+                        pdf_attachment_data = None
+                        if add_pdf_attachment:
+                            with st.spinner("📄 Generating PDF..."):
+                                # Use the shared PDF generation function (single source of truth)
+                                include_custom_table = st.session_state.get('include_custom_table_sidebar', st.session_state.get('include_custom_table', True))
+                                special_rates_pagebreak = st.session_state.get('special_rates_pagebreak_sidebar', st.session_state.get('special_rates_pagebreak', False))
+                                special_rates_spacing = st.session_state.get('special_rates_spacing_sidebar', st.session_state.get('special_rates_spacing', 0))
+                                
+                                header_pdf_file = st.session_state.get('header_pdf_file', None)
+                                if header_pdf_file:
+                                    pdf_attachment_data = generate_customer_pdf(
+                                        df=df,
+                                        customer_name=customer_name,
+                                        header_pdf_file=header_pdf_file,
+                                        include_custom_table=include_custom_table,
+                                        special_rates_pagebreak=special_rates_pagebreak,
+                                        special_rates_spacing=special_rates_spacing
+                                    )
+                                else:
+                                    st.warning("⚠️ No PDF header file selected. PDF attachment will not be included.")
                         
-            except Exception as e:
-                st.error(f"❌ Email error: {str(e)}")
+                        # Get email configuration (same as main body)
+                        config = st.session_state.get('config', {})
+                        smtp_settings = config.get("smtp_settings", {})
+                        saved_sendgrid_key = smtp_settings.get("sendgrid_api_key", "")
+                        
+                        # Try SendGrid first, then SMTP fallback
+                        if (smtp_config.get('enabled', False) and smtp_config.get('provider') == 'SendGrid') or saved_sendgrid_key or SENDGRID_API_KEY:
+                            result = send_email_via_sendgrid_api(
+                                customer_name,
+                                admin_df,
+                                transport_df,
+                                recipient_email,
+                                cc_email if cc_email and cc_email.strip() else None,
+                                global_discount,
+                                df,  # Pass original DataFrame
+                                st.session_state.get('header_pdf_choice', None),  # Get from session state
+                                pdf_attachment_data  # Add PDF attachment
+                            )
+                        else:
+                            result = send_email_with_pricelist(
+                                customer_name,
+                                admin_df,
+                                transport_df,
+                                recipient_email,
+                                smtp_config if smtp_config.get('enabled', False) else None,
+                                cc_email if cc_email and cc_email.strip() else None,
+                                global_discount,
+                                df,  # Pass original DataFrame
+                                st.session_state.get('header_pdf_choice', None),  # Get from session state
+                                pdf_attachment_data  # Add PDF attachment
+                            )
+                        
+                        if result['status'] == 'sent':
+                            st.success(f"✅ Email sent successfully to {recipient_email}!")
+                            if cc_email:
+                                st.info(f"📧 CC: {cc_email}")
+                            st.balloons()
+                        elif result['status'] == 'saved':
+                            st.success("✅ Email data prepared successfully!")
+                            st.info("💡 Check your email configuration to enable sending")
+                        else:
+                            st.error(f"❌ Email failed: {result.get('message', 'Unknown error')}")
+                            
+                except Exception as e:
+                    st.error(f"❌ Email error: {str(e)}")
+    
+    email_options_fragment()
     
     st.markdown("---")
     
