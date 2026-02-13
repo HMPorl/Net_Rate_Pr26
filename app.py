@@ -116,6 +116,13 @@ def home_page():
     
     st.markdown("---")
     st.info("👈 **Use the sidebar** to navigate between Discounts, Custom Rates, and Export pages.")
+    
+    # Debug: Show current session state values
+    with st.expander("🔍 Debug: Session State", expanded=False):
+        st.write(f"**Customer Name:** {st.session_state.get('customer_name', 'NOT SET')}")
+        st.write(f"**Global Discount:** {st.session_state.get('global_discount', 'NOT SET')}")
+        custom_prices_set = sum(1 for k, v in st.session_state.items() if k.startswith('price_') and v)
+        st.write(f"**Custom Prices Count:** {custom_prices_set}")
 
 # -------------------------------
 # Discounts Page
@@ -130,17 +137,39 @@ def discounts_page():
     
     df = st.session_state['df']
     
+    # Initialize values if not present (before widgets)
+    if "customer_name" not in st.session_state:
+        st.session_state["customer_name"] = ""
+    if "bespoke_email" not in st.session_state:
+        st.session_state["bespoke_email"] = ""
+    if "global_discount" not in st.session_state:
+        st.session_state["global_discount"] = 0.0
+    
     # Customer Information
     st.markdown("### 👤 Customer Information")
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.text_input("⭐ Customer Name", key="customer_name", help="Required for all exports")
+        # Use callbacks to ensure values persist
+        def save_customer_name():
+            pass  # Key handles persistence, callback ensures update
+        
+        st.text_input(
+            "⭐ Customer Name", 
+            key="customer_name", 
+            help="Required for all exports",
+            on_change=save_customer_name
+        )
         st.text_input("Bespoke Email Address (optional)", key="bespoke_email")
     
     with col2:
         available_pdfs = get_available_pdf_files()
+        
+        # Initialize PDF choice if not present
+        if "header_pdf_choice" not in st.session_state:
+            st.session_state["header_pdf_choice"] = "(Select Sales Person)"
+        
         header_pdf_choice = st.selectbox(
             "⭐ PDF Header (Sales Person)",
             ["(Select Sales Person)"] + available_pdfs,
@@ -158,10 +187,15 @@ def discounts_page():
     # Global Discount
     st.markdown("### 💰 Global Discount")
     
+    # Use callback to ensure value persists
+    def on_discount_change():
+        pass  # Key handles persistence
+    
     global_discount = st.number_input(
         "Global Discount (%)", 
         min_value=0.0, max_value=100.0, step=0.01, 
-        key="global_discount"
+        key="global_discount",
+        on_change=on_discount_change
     )
     
     # Group operations
@@ -191,8 +225,6 @@ def discounts_page():
         if st.button(f"🗑️ Clear Custom Prices ({custom_count})", use_container_width=True):
             for idx, _ in df.iterrows():
                 st.session_state[f"price_{idx}"] = ""
-                if f"input_{idx}" in st.session_state:
-                    st.session_state[f"input_{idx}"] = ""
             st.session_state['pending_prices'] = {}
             st.success("✅ Custom prices cleared")
             st.rerun()
@@ -302,7 +334,7 @@ def custom_rates_page():
     
     st.markdown("---")
     
-    # Initialize price keys
+    # Initialize price keys - use single key per item
     for idx, row in df.iterrows():
         if f"price_{idx}" not in st.session_state:
             st.session_state[f"price_{idx}"] = ""
@@ -342,7 +374,6 @@ def custom_rates_page():
             with st.expander(header, expanded=should_expand):
                 for idx, row in group_df.iterrows():
                     price_key = f"price_{idx}"
-                    saved_value = st.session_state.get(price_key, "")
                     
                     discount_key = f"{row['GroupName']}_{row['Sub Section']}_discount"
                     group_discount = st.session_state.get(discount_key, global_discount)
@@ -360,16 +391,17 @@ def custom_rates_page():
                         st.markdown(f"**{format_price_display(row['HireRateWeekly'])}**")
                     
                     with col4:
-                        new_value = st.text_input(
-                            "", value=saved_value, key=f"input_{idx}",
-                            label_visibility="collapsed", placeholder="Special Rate"
+                        # Use single key - widget manages its own state
+                        st.text_input(
+                            "", 
+                            key=price_key,
+                            label_visibility="collapsed", 
+                            placeholder="Special Rate"
                         )
-                        
-                        if new_value != saved_value:
-                            st.session_state[price_key] = new_value
                     
                     with col5:
-                        user_input = new_value.strip() if new_value else ""
+                        # Read from session state (the widget key)
+                        user_input = st.session_state.get(price_key, "").strip()
                         
                         if user_input:
                             if is_poa_value(user_input):
