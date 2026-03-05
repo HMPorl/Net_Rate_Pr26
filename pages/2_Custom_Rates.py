@@ -134,13 +134,14 @@ column_config = {
     ),
 }
 
-# Show the editable data
+# Show the editable data (height for ~30 visible rows)
 edited_df = st.data_editor(
     edit_df,
     column_config=column_config,
     use_container_width=True,
     hide_index=True,
     num_rows="fixed",
+    height=1050,  # ~30 rows visible (35px per row + header)
     key="price_editor"
 )
 
