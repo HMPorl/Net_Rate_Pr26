@@ -107,12 +107,11 @@ def home_page():
     st.info("👈 **Use the sidebar** to navigate between Discounts, Custom Rates, and Export pages.")
     
     # Debug: Show current session state values
-    with st.expander("🔍 Debug: Session State", expanded=True):
+    with st.expander("🔍 Debug: Session State", expanded=False):
         st.write(f"**Customer Name:** '{st.session_state.get('customer_name', 'NOT SET')}'")
         st.write(f"**Global Discount:** {st.session_state.get('global_discount', 'NOT SET')}")
         custom_prices_set = sum(1 for k, v in st.session_state.items() if k.startswith('price_') and v)
         st.write(f"**Custom Prices Count:** {custom_prices_set}")
-        st.write(f"**All Session Keys:** {list(st.session_state.keys())}")
     
     # Footer
     st.markdown("---")

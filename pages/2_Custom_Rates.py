@@ -30,14 +30,6 @@ customer_name = st.session_state.get('customer_name', '')
 st.title("🎯 Custom Rates")
 st.markdown("Set individual prices for specific equipment items.")
 
-# DEBUG: Show session state on page load
-with st.expander("🔍 DEBUG: Session State on Page Load", expanded=True):
-    st.write(f"**global_discount:** {st.session_state.get('global_discount', 'NOT IN SESSION')}")
-    st.write(f"**customer_name:** '{st.session_state.get('customer_name', 'NOT IN SESSION')}'")
-    price_keys = [k for k in st.session_state.keys() if k.startswith('price_')]
-    non_empty_prices = [(k, v) for k, v in st.session_state.items() if k.startswith('price_') and v]
-    st.write(f"**Price keys count:** {len(price_keys)}, **Non-empty:** {len(non_empty_prices)}")
-
 # Show current settings
 col1, col2, col3 = st.columns(3)
 with col1:

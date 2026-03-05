@@ -1,11 +1,32 @@
 # Session State Persistence Issue - Debug Log
 
 **Date:** February 13, 2026  
-**Status:** UNRESOLVED - Session state not persisting between page navigation
+**Status:** RESOLVED - March 5, 2026
 
 ---
 
-## Problem Description
+## Solution (March 5, 2026)
+
+**Root cause:** Using `key="global_discount"` directly on widgets conflicts with reading the same key from `st.session_state` in multipage apps.
+
+**Fix:** Use separate widget keys with callbacks:
+```python
+def update_global_discount():
+    st.session_state["global_discount"] = st.session_state["_global_discount_input"]
+
+global_discount = st.number_input(
+    "Global Discount (%)", 
+    value=st.session_state.get("global_discount", 0.0),
+    key="_global_discount_input",  # Different key for widget
+    on_change=update_global_discount
+)
+```
+
+**Also removed:** `st.set_page_config()` from page files - only main `app.py` should have it.
+
+---
+
+## Original Problem Description
 
 When users navigate between pages using the sidebar radio buttons:
 - Global Discount set to 60% resets when returning to Discounts page

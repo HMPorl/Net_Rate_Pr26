@@ -30,15 +30,6 @@ df = st.session_state['df']
 st.title("⚙️ Discounts & Setup")
 st.markdown("Configure customer details, global discount, and group-level discounts.")
 
-# DEBUG: Show session state on page load
-with st.expander("🔍 DEBUG: Session State on Page Load", expanded=True):
-    st.write(f"**global_discount:** {st.session_state.get('global_discount', 'NOT IN SESSION')}")
-    st.write(f"**customer_name:** '{st.session_state.get('customer_name', 'NOT IN SESSION')}'")
-    st.write(f"**authenticated:** {st.session_state.get('authenticated', 'NOT IN SESSION')}")
-    price_keys = [k for k in st.session_state.keys() if k.startswith('price_')]
-    st.write(f"**Price keys count:** {len(price_keys)}")
-    st.write(f"**All session keys:** {list(st.session_state.keys())[:20]}...")
-
 # -------------------------------
 # Customer Information Section
 # -------------------------------
