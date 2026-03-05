@@ -1,9 +1,8 @@
-# Page 2: Custom Rates - Individual Item Pricing
+# Page 2: Custom Rates - Individual Item Pricing (Optimized with data_editor)
 import streamlit as st
 import pandas as pd
-import os
 
-# Import shared utilities (Streamlit runs from project root)
+# Import shared utilities
 from utils import (
     initialize_session_state, ensure_dataframe_loaded,
     is_poa_value, get_numeric_price, format_price_display,
@@ -28,7 +27,7 @@ global_discount = st.session_state.get('global_discount', 0.0)
 customer_name = st.session_state.get('customer_name', '')
 
 st.title("🎯 Custom Rates")
-st.markdown("Set individual prices for specific equipment items.")
+st.markdown("Set individual prices for specific equipment items. **Edit the 'Special Rate' column directly.**")
 
 # Show current settings
 col1, col2, col3 = st.columns(3)
@@ -37,247 +36,214 @@ with col1:
 with col2:
     st.info(f"**Global Discount:** {global_discount}%")
 with col3:
-    custom_count = sum(1 for idx, _ in df.iterrows() if st.session_state.get(f"price_{idx}", "").strip())
+    # Count custom prices from session state
+    custom_count = sum(1 for idx in df.index if st.session_state.get(f"price_{idx}", "").strip())
     st.info(f"**Custom Prices:** {custom_count}")
 
 st.markdown("---")
 
-# Initialize pending prices
-if 'pending_prices' not in st.session_state:
-    st.session_state.pending_prices = {}
+# Initialize custom_prices in session state if not exists
+if 'custom_prices_df' not in st.session_state:
+    st.session_state.custom_prices_df = None
 
-# Initialize price keys
-for idx, row in df.iterrows():
-    price_key = f"price_{idx}"
-    if price_key not in st.session_state:
-        st.session_state[price_key] = ""
-
-# Controls
-col_expand, col_collapse, col_legend = st.columns([2, 2, 6])
-
-with col_expand:
-    if st.button("🔓 Expand All", use_container_width=True):
-        st.session_state.keep_expanded = True
-        st.rerun()
-
-with col_collapse:
-    if st.button("🔒 Collapse All", use_container_width=True):
-        st.session_state.keep_expanded = False
-        st.rerun()
-
-with col_legend:
-    st.markdown("**Legend:** 🎯 = Custom Price | 📊 = Calculated | ✏️ = Pending | ⚠️ = Over Max")
-
-keep_expanded = st.session_state.get('keep_expanded', False)
-
-# Define the pricing fragment - only this section reruns on input changes
-@st.fragment
-def pricing_fragment():
-    def count_pending_changes():
-        count = 0
-        for key, pending_val in st.session_state.pending_prices.items():
-            saved_val = st.session_state.get(key, "")
-            if pending_val != saved_val:
-                count += 1
-        return count
-    
-    grouped_df = df.groupby(["GroupName", "Sub Section"])
-    
-    for (group, subsection), group_df in grouped_df:
-        # Check for custom prices in group
-        has_custom_in_group = any(
-            st.session_state.pending_prices.get(f"price_{idx}", st.session_state.get(f"price_{idx}", "")).strip() 
-            for idx in group_df.index
-        )
+# Build editable dataframe
+def build_editable_df():
+    """Build the editable dataframe with current prices"""
+    rows = []
+    for idx, row in df.iterrows():
+        # Get saved custom price from session state
+        saved_price = st.session_state.get(f"price_{idx}", "")
         
-        has_pending_in_group = any(
-            st.session_state.pending_prices.get(f"price_{idx}", "") != st.session_state.get(f"price_{idx}", "")
-            for idx in group_df.index
-            if f"price_{idx}" in st.session_state.pending_prices
-        )
+        # Calculate discounted price based on group discount
+        discount_key = f"{row['GroupName']}_{row['Sub Section']}_discount"
+        group_discount = st.session_state.get(discount_key, global_discount)
         
-        header_text = f"{group} - {subsection}"
-        if has_pending_in_group:
-            header_text += " ✏️"
-        elif has_custom_in_group:
-            header_text += " 🎯"
+        if is_poa_value(row["HireRateWeekly"]):
+            original_display = "POA"
+            calculated_price = "POA"
+        else:
+            try:
+                original = float(row["HireRateWeekly"])
+                original_display = f"£{original:.2f}"
+                calculated_price = f"£{original * (1 - group_discount/100):.2f}"
+            except:
+                original_display = "POA"
+                calculated_price = "POA"
         
-        should_expand = keep_expanded or has_custom_in_group
-        
-        with st.expander(header_text, expanded=should_expand):
-            for idx, row in group_df.iterrows():
-                price_key = f"price_{idx}"
-                saved_value = st.session_state.get(price_key, "")
-                
-                # Get discounted price
-                discount_key = f"{row['GroupName']}_{row['Sub Section']}_discount"
-                group_discount = st.session_state.get(discount_key, global_discount)
-                discounted_price = get_discounted_price(row, global_discount)
-                
-                col1, col2, col3, col4, col5 = st.columns([2, 3, 1.5, 1.5, 1.5])
-                
-                with col1:
-                    st.markdown(f"**{row['ItemCategory']}**")
-                
-                with col2:
-                    st.markdown(row["EquipmentName"])
-                
-                with col3:
-                    if is_poa_value(row["HireRateWeekly"]):
-                        st.markdown("**POA**")
-                    else:
-                        st.markdown(f"**{format_price_display(row['HireRateWeekly'])}**")
-                
-                with col4:
-                    current_value = st.session_state.pending_prices.get(price_key, saved_value)
-                    
-                    if is_poa_value(row["HireRateWeekly"]):
-                        placeholder_text = "POA - Enter custom or leave"
-                        help_text = "Item is POA - enter specific price"
-                    else:
-                        placeholder_text = "Enter Special Rate or POA"
-                        help_text = "Leave empty for calculated price"
-                    
-                    new_value = st.text_input(
-                        "", 
-                        value=current_value,
-                        key=f"input_{idx}", 
-                        label_visibility="collapsed", 
-                        placeholder=placeholder_text, 
-                        help=help_text
-                    )
-                    
-                    if new_value != saved_value:
-                        st.session_state.pending_prices[price_key] = new_value
-                    elif price_key in st.session_state.pending_prices:
-                        del st.session_state.pending_prices[price_key]
-                
-                with col5:
-                    preview_value = st.session_state.pending_prices.get(price_key, saved_value)
-                    user_input = preview_value.strip() if preview_value else ""
-                    
-                    is_pending = price_key in st.session_state.pending_prices and st.session_state.pending_prices[price_key] != saved_value
-                    pending_indicator = " ✏️" if is_pending else ""
-                    
-                    if user_input:
-                        if is_poa_value(user_input):
-                            st.markdown(f"**POA** 🎯{pending_indicator}")
-                        else:
-                            try:
-                                custom_price = float(user_input)
-                                discount_percent = calculate_discount_percent(row["HireRateWeekly"], custom_price)
-                                
-                                if discount_percent == "POA":
-                                    st.markdown(f"**POA** 🎯{pending_indicator}")
-                                else:
-                                    orig_numeric = get_numeric_price(row["HireRateWeekly"])
-                                    if orig_numeric and discount_percent > row["Max Discount"]:
-                                        st.markdown(f"**{discount_percent:.2f}%** 🎯⚠️{pending_indicator}")
-                                    else:
-                                        st.markdown(f"**{discount_percent:.2f}%** 🎯{pending_indicator}")
-                            except ValueError:
-                                st.markdown(f"**POA** 🎯⚠️{pending_indicator}")
-                    else:
-                        custom_price = discounted_price
-                        discount_percent = calculate_discount_percent(row["HireRateWeekly"], custom_price)
-                        
-                        if discount_percent == "POA":
-                            st.markdown("**POA** 📊")
-                        else:
-                            st.markdown(f"**{discount_percent:.2f}%** 📊")
-                    
-                    # Store final values for export (use SAVED values)
-                    saved_input = saved_value.strip() if saved_value else ""
-                    if saved_input:
-                        if is_poa_value(saved_input):
-                            df.at[idx, "CustomPrice"] = "POA"
-                            df.at[idx, "DiscountPercent"] = "POA"
-                        else:
-                            try:
-                                df.at[idx, "CustomPrice"] = float(saved_input)
-                                df.at[idx, "DiscountPercent"] = calculate_discount_percent(row["HireRateWeekly"], float(saved_input))
-                            except ValueError:
-                                df.at[idx, "CustomPrice"] = "POA"
-                                df.at[idx, "DiscountPercent"] = "POA"
-                    else:
-                        df.at[idx, "CustomPrice"] = discounted_price
-                        df.at[idx, "DiscountPercent"] = calculate_discount_percent(row["HireRateWeekly"], discounted_price)
+        rows.append({
+            "_idx": idx,  # Hidden index for tracking
+            "Group": row["GroupName"],
+            "Category": row["ItemCategory"],
+            "Equipment": row["EquipmentName"],
+            "Original": original_display,
+            "Calculated": calculated_price,
+            "Special Rate": saved_price,  # Editable column
+        })
     
-    # Apply/Discard buttons
-    st.markdown("---")
-    pending_count = count_pending_changes()
-    apply_disabled = pending_count == 0
-    
-    col_apply, col_discard, col_spacer = st.columns([2, 2, 6])
-    
-    with col_apply:
-        if st.button(f"✅ Apply Changes ({pending_count})", type="primary", disabled=apply_disabled, use_container_width=True):
-            applied = 0
-            for key, value in st.session_state.pending_prices.items():
-                if st.session_state.get(key, "") != value:
-                    st.session_state[key] = value
-                    applied += 1
-            st.session_state.pending_prices = {}
-            st.success(f"✅ Applied {applied} price change(s)")
-            st.rerun()
-    
-    with col_discard:
-        if st.button("🗑️ Discard", disabled=apply_disabled, use_container_width=True):
-            st.session_state.pending_prices = {}
-            st.info("Changes discarded")
-            st.rerun()
+    return pd.DataFrame(rows)
 
-# Run the pricing fragment
-pricing_fragment()
+# Filters
+st.markdown("### 🔍 Filter Items")
+col_filter1, col_filter2, col_filter3 = st.columns(3)
 
-# Update session state DataFrame
-st.session_state['df'] = df
+with col_filter1:
+    groups = ["All Groups"] + sorted(df["GroupName"].unique().tolist())
+    selected_group = st.selectbox("Group", groups, key="filter_group")
+
+with col_filter2:
+    if selected_group != "All Groups":
+        categories = ["All Categories"] + sorted(df[df["GroupName"] == selected_group]["ItemCategory"].unique().tolist())
+    else:
+        categories = ["All Categories"] + sorted(df["ItemCategory"].unique().tolist())
+    selected_category = st.selectbox("Category", categories, key="filter_category")
+
+with col_filter3:
+    search_term = st.text_input("🔎 Search Equipment", key="search_equipment", placeholder="Type to search...")
+
+# Build and filter the dataframe
+edit_df = build_editable_df()
+
+# Apply filters
+if selected_group != "All Groups":
+    edit_df = edit_df[edit_df["Group"] == selected_group]
+if selected_category != "All Categories":
+    edit_df = edit_df[edit_df["Category"] == selected_category]
+if search_term:
+    edit_df = edit_df[edit_df["Equipment"].str.contains(search_term, case=False, na=False)]
+
+st.markdown(f"**Showing {len(edit_df)} of {len(df)} items**")
 
 st.markdown("---")
 
-# -------------------------------
-# Summary Tables
-# -------------------------------
-st.markdown("### 📋 Manually Entered Custom Prices")
+# Data editor - fast, efficient editing
+st.markdown("### ✏️ Edit Special Rates")
+st.caption("Click on any cell in the 'Special Rate' column to enter a custom price. Leave blank to use the calculated price.")
 
-manual_entries = []
+# Configure column settings
+column_config = {
+    "_idx": None,  # Hide the index column
+    "Group": st.column_config.TextColumn("Group", disabled=True, width="small"),
+    "Category": st.column_config.TextColumn("Category", disabled=True, width="small"),
+    "Equipment": st.column_config.TextColumn("Equipment", disabled=True, width="medium"),
+    "Original": st.column_config.TextColumn("Original £", disabled=True, width="small"),
+    "Calculated": st.column_config.TextColumn("After Discount", disabled=True, width="small"),
+    "Special Rate": st.column_config.TextColumn(
+        "Special Rate",
+        width="small",
+        help="Enter custom price (e.g., 45.00) or POA. Leave blank for calculated price."
+    ),
+}
+
+# Show the editable data
+edited_df = st.data_editor(
+    edit_df,
+    column_config=column_config,
+    use_container_width=True,
+    hide_index=True,
+    num_rows="fixed",
+    key="price_editor"
+)
+
+# Save changes button
+st.markdown("---")
+
+col_save, col_clear, col_spacer = st.columns([2, 2, 6])
+
+with col_save:
+    if st.button("💾 Save All Changes", type="primary", use_container_width=True):
+        # Save edited values back to session state
+        saved_count = 0
+        for _, row in edited_df.iterrows():
+            idx = row["_idx"]
+            new_price = str(row["Special Rate"]).strip() if pd.notna(row["Special Rate"]) else ""
+            old_price = st.session_state.get(f"price_{idx}", "")
+            
+            if new_price != old_price:
+                st.session_state[f"price_{idx}"] = new_price
+                saved_count += 1
+        
+        if saved_count > 0:
+            st.success(f"✅ Saved {saved_count} price change(s)")
+            st.rerun()
+        else:
+            st.info("No changes to save")
+
+with col_clear:
+    if st.button("🗑️ Clear All Custom Prices", use_container_width=True):
+        cleared = 0
+        for idx in df.index:
+            if st.session_state.get(f"price_{idx}", ""):
+                st.session_state[f"price_{idx}"] = ""
+                cleared += 1
+        if cleared > 0:
+            st.success(f"✅ Cleared {cleared} custom price(s)")
+            st.rerun()
+        else:
+            st.info("No custom prices to clear")
+
+# Summary of custom prices
+st.markdown("---")
+st.markdown("### 📋 Custom Prices Summary")
+
+# Build summary of non-empty custom prices
+summary_rows = []
 for idx, row in df.iterrows():
-    price_key = f"price_{idx}"
-    user_input = st.session_state.get(price_key, "").strip()
-    
-    if user_input:
-        if is_poa_value(user_input):
-            manual_entries.append({
-                "Category": row["ItemCategory"],
-                "Equipment": row["EquipmentName"],
-                "Original": format_price_display(row["HireRateWeekly"]),
-                "Custom Price": "POA",
-                "Discount %": "POA"
-            })
+    custom_price = st.session_state.get(f"price_{idx}", "").strip()
+    if custom_price:
+        if is_poa_value(custom_price):
+            discount_display = "POA"
+            price_display = "POA"
         else:
             try:
-                entered_price = float(user_input)
-                discount_pct = calculate_discount_percent(row['HireRateWeekly'], entered_price)
-                manual_entries.append({
-                    "Category": row["ItemCategory"],
-                    "Equipment": row["EquipmentName"],
-                    "Original": format_price_display(row["HireRateWeekly"]),
-                    "Custom Price": f"£{entered_price:.2f}",
-                    "Discount %": f"{discount_pct:.2f}%" if discount_pct != "POA" else "POA"
-                })
-            except ValueError:
-                manual_entries.append({
-                    "Category": row["ItemCategory"],
-                    "Equipment": row["EquipmentName"],
-                    "Original": format_price_display(row["HireRateWeekly"]),
-                    "Custom Price": "POA (Invalid)",
-                    "Discount %": "POA"
-                })
+                price_val = float(custom_price)
+                price_display = f"£{price_val:.2f}"
+                discount_pct = calculate_discount_percent(row["HireRateWeekly"], price_val)
+                discount_display = f"{discount_pct:.2f}%" if discount_pct != "POA" else "POA"
+            except:
+                price_display = custom_price
+                discount_display = "Invalid"
+        
+        summary_rows.append({
+            "Group": row["GroupName"],
+            "Category": row["ItemCategory"],
+            "Equipment": row["EquipmentName"],
+            "Original": format_price_display(row["HireRateWeekly"]),
+            "Special Rate": price_display,
+            "Discount %": discount_display
+        })
 
-if manual_entries:
-    st.dataframe(pd.DataFrame(manual_entries), use_container_width=True)
+if summary_rows:
+    summary_df = pd.DataFrame(summary_rows)
+    st.dataframe(summary_df, use_container_width=True, hide_index=True)
 else:
-    st.info("No custom prices have been entered yet.")
+    st.info("No custom prices set. Edit the 'Special Rate' column above to add custom prices.")
+
+# Update the main dataframe with custom prices for export
+for idx, row in df.iterrows():
+    custom_price = st.session_state.get(f"price_{idx}", "").strip()
+    
+    if custom_price:
+        if is_poa_value(custom_price):
+            df.at[idx, "CustomPrice"] = "POA"
+            df.at[idx, "DiscountPercent"] = "POA"
+        else:
+            try:
+                price_val = float(custom_price)
+                df.at[idx, "CustomPrice"] = price_val
+                df.at[idx, "DiscountPercent"] = calculate_discount_percent(row["HireRateWeekly"], price_val)
+            except:
+                df.at[idx, "CustomPrice"] = "POA"
+                df.at[idx, "DiscountPercent"] = "POA"
+    else:
+        # Use calculated price
+        discount_key = f"{row['GroupName']}_{row['Sub Section']}_discount"
+        group_discount = st.session_state.get(discount_key, global_discount)
+        discounted = get_discounted_price(row, group_discount)
+        df.at[idx, "CustomPrice"] = discounted
+        df.at[idx, "DiscountPercent"] = calculate_discount_percent(row["HireRateWeekly"], discounted)
+
+# Save updated df back to session state
+st.session_state['df'] = df
 
 # Navigation hint
 st.markdown("---")
