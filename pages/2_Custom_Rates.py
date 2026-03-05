@@ -70,6 +70,22 @@ def build_editable_df():
                 original_display = "POA"
                 calculated_price = "POA"
         
+        # Calculate discount % for special rate (only for saved values)
+        special_discount = ""
+        if saved_price and saved_price.strip():
+            if is_poa_value(saved_price):
+                special_discount = "POA"
+            else:
+                try:
+                    special_val = float(saved_price)
+                    discount_pct = calculate_discount_percent(row["HireRateWeekly"], special_val)
+                    if discount_pct != "POA":
+                        special_discount = f"{discount_pct:.1f}%"
+                    else:
+                        special_discount = "POA"
+                except:
+                    special_discount = "-"
+        
         rows.append({
             "_idx": idx,  # Hidden index for tracking
             "Group": row["GroupName"],
@@ -78,6 +94,7 @@ def build_editable_df():
             "Original": original_display,
             "Calculated": calculated_price,
             "Special Rate": saved_price,  # Editable column
+            "Discount %": special_discount,  # Shows discount for saved special rates
         })
     
     return pd.DataFrame(rows)
@@ -132,6 +149,7 @@ column_config = {
         width="small",
         help="Enter custom price (e.g., 45.00) or POA. Leave blank for calculated price."
     ),
+    "Discount %": st.column_config.TextColumn("Discount %", disabled=True, width="small"),
 }
 
 # Show the editable data (height for ~30 visible rows)
@@ -141,7 +159,7 @@ edited_df = st.data_editor(
     use_container_width=True,
     hide_index=True,
     num_rows="fixed",
-    height=1050,  # ~30 rows visible (35px per row + header)
+    height=735,  # ~20 rows visible (35px per row + header)
     key="price_editor"
 )
 
