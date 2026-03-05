@@ -176,6 +176,14 @@ st.markdown("### 📄 PDF Export")
 header_pdf_file = st.session_state.get('header_pdf_file', None)
 header_pdf_choice = st.session_state.get('header_pdf_choice', "(Select Sales Person)")
 
+# Load PDF file if choice is set but file not loaded (happens when navigating between pages)
+if header_pdf_choice and header_pdf_choice != "(Select Sales Person)" and header_pdf_file is None:
+    pdf_full_path = os.path.join(SCRIPT_DIR, header_pdf_choice)
+    if os.path.exists(pdf_full_path):
+        with open(pdf_full_path, "rb") as f:
+            st.session_state['header_pdf_file'] = io.BytesIO(f.read())
+        header_pdf_file = st.session_state['header_pdf_file']
+
 if header_pdf_choice == "(Select Sales Person)" or header_pdf_file is None:
     st.warning("⚠️ Please select a Sales Person PDF header on the **Discounts** page to enable PDF export.")
 else:
