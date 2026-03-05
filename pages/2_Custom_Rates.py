@@ -92,7 +92,7 @@ def build_editable_df():
             "Group": row["GroupName"],
             "Category": row["ItemCategory"],
             "Equipment": row["EquipmentName"],
-            "Original": original_display,
+            "List Rate": original_display,
             "Calculated": calculated_price,
             "Special Rate": saved_price,  # Editable column
             "Discount %": special_discount,  # Shows discount for saved special rates
@@ -143,8 +143,8 @@ column_config = {
     "Group": st.column_config.TextColumn("Group", disabled=True, width="small"),
     "Category": st.column_config.TextColumn("Category", disabled=True, width="small"),
     "Equipment": st.column_config.TextColumn("Equipment", disabled=True, width="medium"),
-    "Original": st.column_config.TextColumn("Original £", disabled=True, width="small"),
-    "Calculated": st.column_config.TextColumn("After Discount", disabled=True, width="small"),
+    "List Rate": st.column_config.TextColumn("List Rate £", disabled=True, width="small"),
+    "Calculated": st.column_config.TextColumn("With Global Discount", disabled=True, width="small"),
     "Special Rate": st.column_config.TextColumn(
         "Special Rate",
         width="small",
