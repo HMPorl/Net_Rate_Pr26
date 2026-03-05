@@ -90,8 +90,8 @@ def build_editable_df():
         rows.append({
             "_idx": idx,  # Hidden index for tracking
             "Group": row["GroupName"],
-            "Category": row["ItemCategory"],
             "Sub Category": row["Sub Section"],
+            "Category Code": row["ItemCategory"],
             "Equipment": row["EquipmentName"],
             "List Rate": original_display,
             "Calculated": calculated_price,
@@ -126,7 +126,7 @@ edit_df = build_editable_df()
 if selected_group != "All Groups":
     edit_df = edit_df[edit_df["Group"] == selected_group]
 if selected_category != "All Categories":
-    edit_df = edit_df[edit_df["Category"] == selected_category]
+    edit_df = edit_df[edit_df["Category Code"] == selected_category]
 if search_term:
     edit_df = edit_df[edit_df["Equipment"].str.contains(search_term, case=False, na=False)]
 
@@ -142,8 +142,8 @@ st.caption("Click on any cell in the 'Special Rate' column to enter a custom pri
 column_config = {
     "_idx": None,  # Hide the index column
     "Group": st.column_config.TextColumn("Group", disabled=True, width="small"),
-    "Category": st.column_config.TextColumn("Category", disabled=True, width="small"),
     "Sub Category": st.column_config.TextColumn("Sub Category", disabled=True, width="small"),
+    "Category Code": st.column_config.TextColumn("Category Code", disabled=True, width="small"),
     "Equipment": st.column_config.TextColumn("Equipment", disabled=True, width="medium"),
     "List Rate": st.column_config.TextColumn("List Rate £", disabled=True, width="small"),
     "Calculated": st.column_config.TextColumn("With Global Discount", disabled=True, width="small"),
