@@ -50,7 +50,16 @@ if 'custom_prices_df' not in st.session_state:
 def build_editable_df():
     """Build the editable dataframe with current prices"""
     rows = []
+    current_sub_cat = None
+    shade_toggle = False
+    
     for idx, row in df.iterrows():
+        # Toggle shading when sub-category changes
+        if row["Sub Section"] != current_sub_cat:
+            current_sub_cat = row["Sub Section"]
+            shade_toggle = not shade_toggle
+        
+        shade_marker = "🟦" if shade_toggle else "🟨"
         # Get saved custom price from session state
         saved_price = st.session_state.get(f"price_{idx}", "")
         
@@ -89,6 +98,7 @@ def build_editable_df():
         
         rows.append({
             "_idx": idx,  # Hidden index for tracking
+            "▌": shade_marker,  # Visual group indicator
             "Group": row["GroupName"],
             "Sub Category": row["Sub Section"],
             "Category Code": row["ItemCategory"],
@@ -141,6 +151,7 @@ st.caption("Click on any cell in the 'Special Rate' column to enter a custom pri
 # Configure column settings
 column_config = {
     "_idx": None,  # Hide the index column
+    "▌": st.column_config.TextColumn(" ", disabled=True, width=30),  # Visual group indicator
     "Group": st.column_config.TextColumn("Group", disabled=True, width="small"),
     "Sub Category": st.column_config.TextColumn("Sub Category", disabled=True, width="small"),
     "Category Code": st.column_config.TextColumn("Category Code", disabled=True, width="small"),
