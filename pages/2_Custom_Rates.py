@@ -70,14 +70,15 @@ def build_editable_df():
                 original_display = "POA"
                 calculated_price = "POA"
         
-        # Calculate discount % for special rate (only for saved values)
+        # Calculate discount % for saved special rates
         special_discount = ""
-        if saved_price and saved_price.strip():
-            if is_poa_value(saved_price):
+        if saved_price and str(saved_price).strip():
+            price_str = str(saved_price).strip()
+            if is_poa_value(price_str):
                 special_discount = "POA"
             else:
                 try:
-                    special_val = float(saved_price)
+                    special_val = float(price_str)
                     discount_pct = calculate_discount_percent(row["HireRateWeekly"], special_val)
                     if discount_pct != "POA":
                         special_discount = f"{discount_pct:.1f}%"
@@ -162,6 +163,37 @@ edited_df = st.data_editor(
     height=735,  # ~20 rows visible (35px per row + header)
     key="price_editor"
 )
+
+# Show live preview of unsaved edits with calculated discounts
+unsaved_changes = []
+for i in range(len(edit_df)):
+    orig_special = str(edit_df.iloc[i]["Special Rate"]) if pd.notna(edit_df.iloc[i]["Special Rate"]) else ""
+    edit_special = str(edited_df.iloc[i]["Special Rate"]) if pd.notna(edited_df.iloc[i]["Special Rate"]) else ""
+    
+    if edit_special.strip() and edit_special != orig_special:
+        # Calculate discount for this unsaved edit
+        idx = edited_df.iloc[i]["_idx"]
+        original_row = df.loc[idx]
+        
+        if is_poa_value(edit_special):
+            calc_discount = "POA"
+        else:
+            try:
+                special_val = float(edit_special)
+                discount_pct = calculate_discount_percent(original_row["HireRateWeekly"], special_val)
+                calc_discount = f"{discount_pct:.1f}%" if discount_pct != "POA" else "POA"
+            except:
+                calc_discount = "Invalid"
+        
+        unsaved_changes.append({
+            "Equipment": edited_df.iloc[i]["Equipment"],
+            "New Special Rate": f"£{edit_special}" if not is_poa_value(edit_special) else "POA",
+            "Discount %": calc_discount
+        })
+
+if unsaved_changes:
+    st.markdown("#### ⏳ Unsaved Changes Preview")
+    st.dataframe(pd.DataFrame(unsaved_changes), use_container_width=True, hide_index=True)
 
 # Save changes button
 st.markdown("---")
