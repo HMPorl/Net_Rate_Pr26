@@ -63,14 +63,26 @@ with col1:
 with col2:
     # PDF Header Selection
     available_pdfs = get_available_pdf_files()
+    pdf_options = ["(Select Sales Person)"] + available_pdfs
     
     # DEBUG: Show available PDFs
     st.caption(f"Found {len(available_pdfs)} PDFs: {available_pdfs[:3]}..." if len(available_pdfs) > 3 else f"Found: {available_pdfs}")
     
+    # Callback to persist selection
+    def update_pdf_header():
+        """Callback to sync PDF header selection to session state"""
+        st.session_state["selected_pdf_header"] = st.session_state["_header_pdf_input"]
+    
+    # Get saved value and find index
+    saved_pdf = st.session_state.get("selected_pdf_header", "(Select Sales Person)")
+    pdf_index = pdf_options.index(saved_pdf) if saved_pdf in pdf_options else 0
+    
     header_pdf_choice = st.selectbox(
         "⭐ PDF Header (Sales Person)",
-        ["(Select Sales Person)"] + available_pdfs,
-        key="header_pdf_choice",
+        pdf_options,
+        index=pdf_index,
+        key="_header_pdf_input",
+        on_change=update_pdf_header,
         help=f"Found {len(available_pdfs)} PDF files"
     )
     

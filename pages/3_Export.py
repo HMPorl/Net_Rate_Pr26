@@ -174,11 +174,11 @@ st.markdown("---")
 st.markdown("### 📄 PDF Export")
 
 header_pdf_file = st.session_state.get('header_pdf_file', None)
-header_pdf_choice = st.session_state.get('header_pdf_choice', "(Select Sales Person)")
+header_pdf_choice = st.session_state.get('selected_pdf_header', "(Select Sales Person)")
 
 # DEBUG: Show what we're getting
 with st.expander("🔍 Debug PDF Info", expanded=True):
-    st.write(f"header_pdf_choice from session: `{header_pdf_choice}`")
+    st.write(f"selected_pdf_header from session: `{header_pdf_choice}`")
     st.write(f"header_pdf_file exists: `{header_pdf_file is not None}`")
     st.write(f"SCRIPT_DIR: `{SCRIPT_DIR}`")
     if header_pdf_choice and header_pdf_choice != "(Select Sales Person)":
