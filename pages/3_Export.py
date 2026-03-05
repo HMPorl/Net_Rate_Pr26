@@ -176,6 +176,16 @@ st.markdown("### 📄 PDF Export")
 header_pdf_file = st.session_state.get('header_pdf_file', None)
 header_pdf_choice = st.session_state.get('header_pdf_choice', "(Select Sales Person)")
 
+# DEBUG: Show what we're getting
+with st.expander("🔍 Debug PDF Info", expanded=True):
+    st.write(f"header_pdf_choice from session: `{header_pdf_choice}`")
+    st.write(f"header_pdf_file exists: `{header_pdf_file is not None}`")
+    st.write(f"SCRIPT_DIR: `{SCRIPT_DIR}`")
+    if header_pdf_choice and header_pdf_choice != "(Select Sales Person)":
+        pdf_full_path = os.path.join(SCRIPT_DIR, header_pdf_choice)
+        st.write(f"Full path would be: `{pdf_full_path}`")
+        st.write(f"File exists: `{os.path.exists(pdf_full_path)}`")
+
 # Load PDF file if choice is set but file not loaded (happens when navigating between pages)
 if header_pdf_choice and header_pdf_choice != "(Select Sales Person)" and header_pdf_file is None:
     pdf_full_path = os.path.join(SCRIPT_DIR, header_pdf_choice)
@@ -183,6 +193,9 @@ if header_pdf_choice and header_pdf_choice != "(Select Sales Person)" and header
         with open(pdf_full_path, "rb") as f:
             st.session_state['header_pdf_file'] = io.BytesIO(f.read())
         header_pdf_file = st.session_state['header_pdf_file']
+        st.success("✅ PDF file loaded successfully!")
+    else:
+        st.error(f"❌ PDF file not found at: {pdf_full_path}")
 
 if header_pdf_choice == "(Select Sales Person)" or header_pdf_file is None:
     st.warning("⚠️ Please select a Sales Person PDF header on the **Discounts** page to enable PDF export.")

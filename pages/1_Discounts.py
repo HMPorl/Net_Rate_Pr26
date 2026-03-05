@@ -63,6 +63,10 @@ with col1:
 with col2:
     # PDF Header Selection
     available_pdfs = get_available_pdf_files()
+    
+    # DEBUG: Show available PDFs
+    st.caption(f"Found {len(available_pdfs)} PDFs: {available_pdfs[:3]}..." if len(available_pdfs) > 3 else f"Found: {available_pdfs}")
+    
     header_pdf_choice = st.selectbox(
         "⭐ PDF Header (Sales Person)",
         ["(Select Sales Person)"] + available_pdfs,
@@ -76,6 +80,9 @@ with col2:
         if os.path.exists(pdf_full_path):
             with open(pdf_full_path, "rb") as f:
                 st.session_state['header_pdf_file'] = io.BytesIO(f.read())
+            st.success(f"✅ Loaded: {header_pdf_choice}")
+        else:
+            st.error(f"❌ File not found: {pdf_full_path}")
 
 # Logo upload
 logo_file = st.file_uploader("Company Logo (optional)", type=["png", "jpg", "jpeg"])
