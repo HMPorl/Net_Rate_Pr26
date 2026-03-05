@@ -91,6 +91,7 @@ def build_editable_df():
             "_idx": idx,  # Hidden index for tracking
             "Group": row["GroupName"],
             "Category": row["ItemCategory"],
+            "Sub Category": row["Sub Section"],
             "Equipment": row["EquipmentName"],
             "List Rate": original_display,
             "Calculated": calculated_price,
@@ -142,6 +143,7 @@ column_config = {
     "_idx": None,  # Hide the index column
     "Group": st.column_config.TextColumn("Group", disabled=True, width="small"),
     "Category": st.column_config.TextColumn("Category", disabled=True, width="small"),
+    "Sub Category": st.column_config.TextColumn("Sub Category", disabled=True, width="small"),
     "Equipment": st.column_config.TextColumn("Equipment", disabled=True, width="medium"),
     "List Rate": st.column_config.TextColumn("List Rate £", disabled=True, width="small"),
     "Calculated": st.column_config.TextColumn("With Global Discount", disabled=True, width="small"),
