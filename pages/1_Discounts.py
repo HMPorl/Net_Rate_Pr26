@@ -1,13 +1,5 @@
 # Page 1: Discounts - Customer Setup & Discount Configuration
 import streamlit as st
-
-# Page config must be first Streamlit command
-st.set_page_config(
-    page_title="Discounts - Net Rates",
-    page_icon="⚙️",
-    layout="wide"
-)
-
 import pandas as pd
 import os
 import io

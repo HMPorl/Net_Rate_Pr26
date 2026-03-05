@@ -1,13 +1,5 @@
 # Page 3: Export - Generate and Download Files
 import streamlit as st
-
-# Page config must be first Streamlit command
-st.set_page_config(
-    page_title="Export - Net Rates",
-    page_icon="📤",
-    layout="wide"
-)
-
 import pandas as pd
 import io
 import os

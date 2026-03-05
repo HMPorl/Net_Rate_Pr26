@@ -1,13 +1,5 @@
 # Page 2: Custom Rates - Individual Item Pricing
 import streamlit as st
-
-# Page config must be first Streamlit command
-st.set_page_config(
-    page_title="Custom Rates - Net Rates",
-    page_icon="🎯",
-    layout="wide"
-)
-
 import pandas as pd
 import os
 
