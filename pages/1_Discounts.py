@@ -44,18 +44,29 @@ with st.expander("🔍 DEBUG: Session State on Page Load", expanded=True):
 # -------------------------------
 st.markdown("### 👤 Customer Information")
 
+# Callbacks to ensure values are saved to session state
+def update_customer_name():
+    st.session_state["customer_name"] = st.session_state["_customer_name_input"]
+
+def update_bespoke_email():
+    st.session_state["bespoke_email"] = st.session_state["_bespoke_email_input"]
+
 col1, col2 = st.columns([2, 1])
 
 with col1:
     customer_name = st.text_input(
-        "⭐ Customer Name", 
-        key="customer_name",
-        help="Required for all exports"
+        "⭐ Customer Name",
+        value=st.session_state.get("customer_name", ""),
+        key="_customer_name_input",
+        help="Required for all exports",
+        on_change=update_customer_name
     )
     
     bespoke_email = st.text_input(
-        "Bespoke Email Address (optional)", 
-        key="bespoke_email"
+        "Bespoke Email Address (optional)",
+        value=st.session_state.get("bespoke_email", ""),
+        key="_bespoke_email_input",
+        on_change=update_bespoke_email
     )
 
 with col2:
@@ -87,12 +98,22 @@ st.markdown("---")
 # -------------------------------
 st.markdown("### 💰 Global Discount")
 
+# Use a separate key for the widget and sync manually to avoid Streamlit widget/session conflicts
+def update_global_discount():
+    """Callback to sync widget value to session state"""
+    st.session_state["global_discount"] = st.session_state["_global_discount_input"]
+
+# Get current value from session state
+current_discount = st.session_state.get("global_discount", 0.0)
+
 global_discount = st.number_input(
     "Global Discount (%)", 
     min_value=0.0, 
     max_value=100.0, 
-    step=0.01, 
-    key="global_discount"
+    step=0.01,
+    value=current_discount,
+    key="_global_discount_input",
+    on_change=update_global_discount
 )
 
 # Pre-calculate group info for bulk operations
