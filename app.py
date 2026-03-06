@@ -104,7 +104,7 @@ def home_page():
             st.metric("📦 Total Items", 0)
     
     st.markdown("---")
-    st.info("👈 **Use the sidebar** to navigate between Discounts, Custom Rates, and Export pages.")
+    st.info("👈 **Use the sidebar** to navigate between Discounts, Special Rates, and Export pages.")
     
     # Debug: Show current session state values
     with st.expander("🔍 Debug: Session State", expanded=False):

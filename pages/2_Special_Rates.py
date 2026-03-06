@@ -1,4 +1,4 @@
-# Page 2: Custom Rates - Individual Item Pricing (Optimized with data_editor)
+# Page 2: Special Rates - Individual Item Pricing (Optimized with data_editor)
 import streamlit as st
 import pandas as pd
 
@@ -29,7 +29,7 @@ df = st.session_state['df']
 global_discount = st.session_state.get('global_discount', 0.0)
 customer_name = st.session_state.get('customer_name', '')
 
-st.title("🎯 Custom Rates")
+st.title("🎯 Special Rates")
 st.markdown("Set individual prices for specific equipment items. **Edit the 'Special Rate' column directly.**")
 
 # Show current settings
@@ -217,7 +217,7 @@ st.markdown("---")
 col_save, col_clear, col_spacer = st.columns([2, 2, 6])
 
 with col_save:
-    if st.button("💾 Save All Changes", type="primary", use_container_width=True):
+    if st.button("💾 Update Special Rates", type="primary", use_container_width=True):
         # Save edited values back to session state
         saved_count = 0
         for _, row in edited_df.iterrows():

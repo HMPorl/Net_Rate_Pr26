@@ -308,4 +308,4 @@ with col4:
 
 # Navigation hint
 st.markdown("---")
-st.info("👉 **Next:** Go to **Custom Rates** page to set individual item prices, or **Export** to generate files.")
+st.info("👉 **Next:** Go to **Special Rates** page to set individual item prices, or **Export** to generate files.")
