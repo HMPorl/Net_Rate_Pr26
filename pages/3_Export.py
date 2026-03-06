@@ -191,49 +191,46 @@ if header_pdf_choice and header_pdf_choice != "(Select Sales Person)" and header
 if header_pdf_choice == "(Select Sales Person)" or header_pdf_file is None:
     st.warning("⚠️ Please select a Sales Person PDF header on the **Discounts** page to enable PDF export.")
 else:
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        include_custom_table = st.checkbox("Include Special Rates table", value=True, key="include_custom_table")
-        special_rates_pagebreak = st.checkbox("Special rates on separate page", value=False, key="special_rates_pagebreak")
-    
-    with col2:
-        special_rates_spacing = st.number_input(
-            "Spacing after special rates (lines)",
-            min_value=0, max_value=10, value=0,
-            key="special_rates_spacing"
-        )
-    
-    if st.button("📄 Generate PDF", type="primary", use_container_width=True):
+    @st.fragment
+    def pdf_download_section():
+        col1, col2 = st.columns(2)
+        with col1:
+            include_custom_table = st.checkbox("Include Special Rates table", value=True, key="include_custom_table")
+            special_rates_pagebreak = st.checkbox("Special rates on separate page", value=False, key="special_rates_pagebreak")
+        
+        with col2:
+            special_rates_spacing = st.number_input(
+                "Spacing after special rates (lines)",
+                min_value=0, max_value=10, value=0,
+                key="special_rates_spacing"
+            )
+        
+        # Generate PDF for download
         try:
-            with st.spinner("Generating PDF..."):
-                pdf_data = generate_customer_pdf(
-                    df, 
-                    customer_name, 
-                    header_pdf_file,
-                    include_custom_table=include_custom_table,
-                    special_rates_pagebreak=special_rates_pagebreak,
-                    special_rates_spacing=special_rates_spacing
+            pdf_data = generate_customer_pdf(
+                df, 
+                customer_name, 
+                header_pdf_file,
+                include_custom_table=include_custom_table,
+                special_rates_pagebreak=special_rates_pagebreak,
+                special_rates_spacing=special_rates_spacing
+            )
+            
+            if pdf_data:
+                st.download_button(
+                    label="📄 Download PDF",
+                    data=pdf_data,
+                    file_name=f"{customer_name}_net_rates_{get_uk_time().strftime('%Y%m%d')}.pdf",
+                    mime="application/pdf",
+                    type="primary",
+                    use_container_width=True
                 )
-                
-                if pdf_data:
-                    st.session_state['generated_pdf'] = pdf_data
-                    st.success("✅ PDF generated successfully!")
-                else:
-                    st.error("❌ Failed to generate PDF")
-                    
+            else:
+                st.error("❌ Failed to generate PDF")
         except Exception as e:
             st.error(f"PDF generation error: {e}")
     
-    # Show download button if PDF was generated
-    if st.session_state.get('generated_pdf'):
-        st.download_button(
-            label="📥 Download PDF",
-            data=st.session_state['generated_pdf'],
-            file_name=f"{customer_name}_net_rates_{get_uk_time().strftime('%Y%m%d')}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+    pdf_download_section()
 
 st.markdown("---")
 
