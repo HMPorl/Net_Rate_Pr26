@@ -426,14 +426,21 @@ def add_shared_sidebar():
         )
         
         if uploaded_file is not None:
-            try:
-                loaded_data = json.load(uploaded_file)
-                if df is not None:
-                    apply_loaded_data(loaded_data, df)
-                    st.success(f"✅ Loaded: {loaded_data.get('customer_name', 'Unknown')}")
-                    st.rerun()
-            except Exception as e:
-                st.error(f"❌ Failed to load: {e}")
+            # Track which file we've loaded to prevent re-loading on rerun
+            file_id = f"{uploaded_file.name}_{uploaded_file.size}"
+            last_loaded = st.session_state.get('_last_loaded_file_id', '')
+            
+            if file_id != last_loaded:
+                try:
+                    uploaded_file.seek(0)  # Reset file pointer
+                    loaded_data = json.load(uploaded_file)
+                    if df is not None:
+                        apply_loaded_data(loaded_data, df)
+                        st.session_state['_last_loaded_file_id'] = file_id
+                        st.success(f"✅ Loaded: {loaded_data.get('customer_name', 'Unknown')}")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Failed to load: {e}")
         
         st.markdown("---")
         st.markdown("### 🔐 Session")
