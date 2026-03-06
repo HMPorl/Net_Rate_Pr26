@@ -94,6 +94,204 @@ def save_config(config):
         return False
 
 # -------------------------------
+# ERP Import Functions
+# -------------------------------
+CONVERSION_TABLE_FILE = os.path.join(SCRIPT_DIR, "Conversion Table for Net Rates App.xlsx")
+
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def load_conversion_table():
+    """Load the ERP conversion table from Excel file"""
+    try:
+        if os.path.exists(CONVERSION_TABLE_FILE):
+            df = pd.read_excel(CONVERSION_TABLE_FILE)
+            return df
+        else:
+            return None
+    except Exception as e:
+        st.error(f"Error loading conversion table: {e}")
+        return None
+
+def extract_tower_height(description):
+    """Extract height value from tower description (e.g., 'H2.66xL2.0m' -> 2.66)"""
+    import re
+    # Match pattern like H2.66x or H2.66xL
+    match = re.search(r'H(\d+\.?\d*)x', description, re.IGNORECASE)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+    return None
+
+def parse_erp_data(erp_text, conversion_table, rate_card_df):
+    """
+    Parse ERP copy-paste data and match against conversion table and rate card.
+    
+    Returns a list of dicts with:
+    - erp_code: Original ERP code
+    - erp_description: ERP description
+    - erp_price: Price from ERP (£ stripped)
+    - matched_code: ItemCategory code in rate card
+    - matched_name: Equipment name in rate card
+    - rate_card_idx: Index in rate card dataframe
+    - final_price: Calculated price (divided by height for towers)
+    - product_type: Fleet/Bulk/Tower
+    - status: matched/unmatched/error
+    - note: Any notes about the match
+    """
+    results = []
+    
+    if not erp_text or not erp_text.strip():
+        return results
+    
+    if conversion_table is None:
+        return [{"status": "error", "note": "Conversion table not loaded"}]
+    
+    # Build lookup dictionaries from conversion table
+    # For Fleet: code -> code (direct match)
+    # For Bulk/Tower: description -> code
+    fleet_codes = set()
+    bulk_desc_to_code = {}
+    tower_desc_to_code = {}
+    
+    for _, row in conversion_table.iterrows():
+        code = str(row['EQP_EQUIPMENT_CLASS']).strip()
+        desc = str(row['EQP_NAME']).strip().lower()
+        prod_type = str(row['Type']).strip()
+        
+        if prod_type == 'Fleet':
+            fleet_codes.add(code)
+        elif prod_type == 'Bulk':
+            bulk_desc_to_code[desc] = code
+        elif prod_type == 'Tower':
+            tower_desc_to_code[desc] = code
+    
+    # Build rate card lookup by ItemCategory
+    rate_card_lookup = {}
+    for idx, row in rate_card_df.iterrows():
+        item_cat = str(row['ItemCategory']).strip()
+        rate_card_lookup[item_cat] = {
+            'idx': idx,
+            'name': row['EquipmentName'],
+            'price': row['HireRateWeekly']
+        }
+    
+    # Parse ERP data (tab-delimited)
+    lines = erp_text.strip().split('\n')
+    
+    for line in lines:
+        if not line.strip():
+            continue
+        
+        # Split by tab
+        parts = line.split('\t')
+        
+        if len(parts) < 7:
+            continue
+        
+        erp_code = parts[0].strip()
+        erp_desc_col2 = parts[1].strip() if len(parts) > 1 else ""  # Sometimes description is in col 2
+        erp_price_raw = parts[2].strip() if len(parts) > 2 else ""  # Week rate in col 3
+        erp_desc_col7 = parts[6].strip() if len(parts) > 6 else ""  # Main description in col 7
+        
+        # Use column 7 description if available, otherwise column 2
+        erp_description = erp_desc_col7 if erp_desc_col7 else erp_desc_col2
+        
+        # Skip header row
+        if erp_code == 'PAR_EQUIPMENT_CLASS' or 'EQC_NAME' in erp_description:
+            continue
+        
+        # Parse price (remove £ symbol)
+        erp_price = None
+        if erp_price_raw:
+            try:
+                erp_price = float(erp_price_raw.replace('£', '').replace(',', '').strip())
+            except ValueError:
+                pass
+        
+        result = {
+            'erp_code': erp_code,
+            'erp_description': erp_description,
+            'erp_price': erp_price,
+            'matched_code': None,
+            'matched_name': None,
+            'rate_card_idx': None,
+            'final_price': None,
+            'product_type': None,
+            'status': 'unmatched',
+            'note': ''
+        }
+        
+        # Determine product type and match
+        if erp_code and erp_code[0].isdigit() and '/' in erp_code:
+            # Fleet product - direct code match
+            result['product_type'] = 'Fleet'
+            
+            if erp_code in rate_card_lookup:
+                result['matched_code'] = erp_code
+                result['matched_name'] = rate_card_lookup[erp_code]['name']
+                result['rate_card_idx'] = rate_card_lookup[erp_code]['idx']
+                result['final_price'] = erp_price
+                result['status'] = 'matched'
+            else:
+                result['note'] = f"Code {erp_code} not found in rate card"
+        
+        elif erp_code.startswith('B') or erp_code.startswith('BNHOL'):
+            # Bulk product - match by description
+            result['product_type'] = 'Bulk'
+            
+            desc_lower = erp_description.lower().strip()
+            if desc_lower in bulk_desc_to_code:
+                matched_code = bulk_desc_to_code[desc_lower]
+                if matched_code in rate_card_lookup:
+                    result['matched_code'] = matched_code
+                    result['matched_name'] = rate_card_lookup[matched_code]['name']
+                    result['rate_card_idx'] = rate_card_lookup[matched_code]['idx']
+                    result['final_price'] = erp_price
+                    result['status'] = 'matched'
+                else:
+                    result['note'] = f"Converted code {matched_code} not in rate card"
+            else:
+                result['note'] = f"Description not found in conversion table"
+        
+        elif erp_code.startswith('TO'):
+            # Tower product - match by description and calculate per-meter price
+            result['product_type'] = 'Tower'
+            
+            desc_lower = erp_description.lower().strip()
+            if desc_lower in tower_desc_to_code:
+                matched_code = tower_desc_to_code[desc_lower]
+                
+                # Extract height for per-meter calculation
+                height = extract_tower_height(erp_description)
+                
+                if matched_code in rate_card_lookup:
+                    result['matched_code'] = matched_code
+                    result['matched_name'] = rate_card_lookup[matched_code]['name']
+                    result['rate_card_idx'] = rate_card_lookup[matched_code]['idx']
+                    
+                    if height and height > 0 and erp_price:
+                        result['final_price'] = round(erp_price / height, 2)
+                        result['note'] = f"£{erp_price:.2f} ÷ {height}m = £{result['final_price']:.2f}/m"
+                    else:
+                        result['final_price'] = erp_price
+                        if not height:
+                            result['note'] = "Could not extract height for per-meter calc"
+                    
+                    result['status'] = 'matched'
+                else:
+                    result['note'] = f"Converted code {matched_code} not in rate card"
+            else:
+                result['note'] = f"Tower description not found in conversion table"
+        
+        else:
+            result['note'] = f"Unknown product type for code: {erp_code}"
+        
+        results.append(result)
+    
+    return results
+
+# -------------------------------
 # Session State Initialization
 # -------------------------------
 def initialize_session_state():

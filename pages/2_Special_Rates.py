@@ -6,7 +6,8 @@ import pandas as pd
 from utils import (
     initialize_session_state, ensure_dataframe_loaded,
     is_poa_value, get_numeric_price, format_price_display,
-    get_discounted_price, calculate_discount_percent, add_shared_sidebar
+    get_discounted_price, calculate_discount_percent, add_shared_sidebar,
+    load_conversion_table, parse_erp_data
 )
 
 # Initialize session state
@@ -44,6 +45,99 @@ with col3:
     st.info(f"**Custom Prices:** {custom_count}")
 
 st.markdown("---")
+
+# -------------------------------
+# ERP Import Section
+# -------------------------------
+with st.expander("📥 Import from ERP (Copy & Paste)", expanded=False):
+    st.markdown("""
+    **Instructions:** Copy rate data from your ERP system and paste it below. 
+    The system will automatically match products and calculate prices.
+    
+    - **Fleet products** (01/xxx): Direct code match
+    - **Bulk products** (Bxxxx): Matched by description via conversion table
+    - **Towers** (TOxxx): Per-meter price calculated from height
+    """)
+    
+    # Initialize session state for ERP import
+    if 'erp_paste_data' not in st.session_state:
+        st.session_state.erp_paste_data = ""
+    if 'erp_parsed_results' not in st.session_state:
+        st.session_state.erp_parsed_results = None
+    
+    erp_text = st.text_area(
+        "Paste ERP data here (tab-delimited):",
+        value=st.session_state.erp_paste_data,
+        height=150,
+        placeholder="PAR_EQUIPMENT_CLASS\tEQP_NAME\tPAR_AGREED_WEEK_RATE\t...",
+        key="erp_text_input"
+    )
+    
+    col_parse, col_clear_erp = st.columns([1, 1])
+    
+    with col_parse:
+        if st.button("🔍 Parse & Preview", type="primary", use_container_width=True):
+            if erp_text.strip():
+                st.session_state.erp_paste_data = erp_text
+                conversion_table = load_conversion_table()
+                if conversion_table is not None:
+                    results = parse_erp_data(erp_text, conversion_table, df)
+                    st.session_state.erp_parsed_results = results
+                else:
+                    st.error("❌ Could not load conversion table. Please check the file exists.")
+            else:
+                st.warning("Please paste some data first.")
+    
+    with col_clear_erp:
+        if st.button("🗑️ Clear", use_container_width=True):
+            st.session_state.erp_paste_data = ""
+            st.session_state.erp_parsed_results = None
+            st.rerun()
+    
+    # Show parsed results
+    if st.session_state.erp_parsed_results:
+        results = st.session_state.erp_parsed_results
+        
+        matched = [r for r in results if r['status'] == 'matched']
+        unmatched = [r for r in results if r['status'] != 'matched']
+        
+        st.markdown(f"### Results: **{len(matched)}** matched, **{len(unmatched)}** unmatched")
+        
+        if matched:
+            st.markdown("#### ✅ Matched Items (will be imported)")
+            matched_df = pd.DataFrame([{
+                'Type': r['product_type'],
+                'ERP Code': r['erp_code'],
+                'Description': r['erp_description'][:50] + '...' if len(r['erp_description']) > 50 else r['erp_description'],
+                'Rate Card Code': r['matched_code'],
+                'ERP Price': f"£{r['erp_price']:.2f}" if r['erp_price'] else '-',
+                'Final Price': f"£{r['final_price']:.2f}" if r['final_price'] else '-',
+                'Note': r['note']
+            } for r in matched])
+            st.dataframe(matched_df, use_container_width=True, hide_index=True, height=300)
+            
+            if st.button("✅ Apply All Matched Prices", type="primary", use_container_width=True):
+                applied_count = 0
+                for r in matched:
+                    if r['rate_card_idx'] is not None and r['final_price'] is not None:
+                        st.session_state[f"price_{r['rate_card_idx']}"] = str(r['final_price'])
+                        applied_count += 1
+                
+                st.success(f"✅ Applied {applied_count} prices from ERP import!")
+                st.session_state.erp_parsed_results = None
+                st.session_state.erp_paste_data = ""
+                st.rerun()
+        
+        if unmatched:
+            st.markdown("#### ⚠️ Unmatched Items (will be skipped)")
+            unmatched_df = pd.DataFrame([{
+                'Type': r['product_type'] or 'Unknown',
+                'ERP Code': r['erp_code'],
+                'Description': r['erp_description'][:50] + '...' if len(r['erp_description']) > 50 else r['erp_description'],
+                'ERP Price': f"£{r['erp_price']:.2f}" if r['erp_price'] else '-',
+                'Reason': r['note']
+            } for r in unmatched])
+            st.dataframe(unmatched_df, use_container_width=True, hide_index=True)
 
 # Initialize custom_prices in session state if not exists
 if 'custom_prices_df' not in st.session_state:
