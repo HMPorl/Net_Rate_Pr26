@@ -90,9 +90,37 @@ Example: £213.63 → £100 = 53.19%
 ---
 
 ## Outstanding Items / Next Steps
-1. **Remove debug panels** from Discounts and Export pages once PDF export confirmed stable
-2. **PDF Export** - Button shows "PDF generation would happen here" - full implementation may need `generate_customer_pdf` function migrated
-3. **Test PDF export** end-to-end after removing debug info
+1. ~~**Remove debug panels** from Discounts and Export pages once PDF export confirmed stable~~ ✅ Done (March 6)
+2. ~~**PDF Export** - Button shows "PDF generation would happen here" - full implementation may need `generate_customer_pdf` function migrated~~ ✅ Done (March 6)
+3. ~~**Test PDF export** end-to-end after removing debug info~~ ✅ Ready for testing (March 6)
+
+---
+
+## Session 2 - March 6, 2026
+
+### Changes Made
+
+1. **Removed debug panels** from:
+   - `pages/1_Discounts.py` - removed `st.caption` showing PDF count debug info
+   - `pages/3_Export.py` - removed "Debug PDF Info" expander
+
+2. **Implemented PDF Export** by:
+   - Added imports to `utils.py`: `fitz`, `PIL.Image`, `reportlab` components
+   - Added `add_footer_logo()` function to `utils.py`
+   - Added `read_pdf_header()` function to `utils.py`
+   - Added `generate_customer_pdf()` function to `utils.py` (~300 lines)
+   - Updated `pages/3_Export.py` to import and call `generate_customer_pdf`
+   - Added download button for generated PDF
+
+### PDF Export Features
+- Merges salesperson header PDF with generated content
+- Adds customer name and bespoke email to first page
+- Optional company logo on cover page
+- Special rates table at top (configurable)
+- Main price list grouped by GroupName and Sub Section
+- Transport charges on page 3
+- Footer logo on all generated pages
+- Yellow highlighting for special rate items
 
 ---
 

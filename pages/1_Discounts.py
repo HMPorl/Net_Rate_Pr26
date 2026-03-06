@@ -65,9 +65,6 @@ with col2:
     available_pdfs = get_available_pdf_files()
     pdf_options = ["(Select Sales Person)"] + available_pdfs
     
-    # DEBUG: Show available PDFs
-    st.caption(f"Found {len(available_pdfs)} PDFs: {available_pdfs[:3]}..." if len(available_pdfs) > 3 else f"Found: {available_pdfs}")
-    
     # Callback to persist selection
     def update_pdf_header():
         """Callback to sync PDF header selection to session state"""

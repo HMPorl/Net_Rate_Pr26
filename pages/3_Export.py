@@ -12,7 +12,8 @@ from utils import (
     format_discount_for_export, format_custom_price_for_display,
     create_admin_dataframe, create_transport_dataframe, create_save_data,
     TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES, SCRIPT_DIR,
-    SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, is_poa_value, calculate_discount_percent
+    SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, is_poa_value, calculate_discount_percent,
+    generate_customer_pdf
 )
 
 # Initialize session state
@@ -176,16 +177,6 @@ st.markdown("### 📄 PDF Export")
 header_pdf_file = st.session_state.get('header_pdf_file', None)
 header_pdf_choice = st.session_state.get('selected_pdf_header', "(Select Sales Person)")
 
-# DEBUG: Show what we're getting
-with st.expander("🔍 Debug PDF Info", expanded=True):
-    st.write(f"selected_pdf_header from session: `{header_pdf_choice}`")
-    st.write(f"header_pdf_file exists: `{header_pdf_file is not None}`")
-    st.write(f"SCRIPT_DIR: `{SCRIPT_DIR}`")
-    if header_pdf_choice and header_pdf_choice != "(Select Sales Person)":
-        pdf_full_path = os.path.join(SCRIPT_DIR, header_pdf_choice)
-        st.write(f"Full path would be: `{pdf_full_path}`")
-        st.write(f"File exists: `{os.path.exists(pdf_full_path)}`")
-
 # Load PDF file if choice is set but file not loaded (happens when navigating between pages)
 if header_pdf_choice and header_pdf_choice != "(Select Sales Person)" and header_pdf_file is None:
     pdf_full_path = os.path.join(SCRIPT_DIR, header_pdf_choice)
@@ -215,18 +206,34 @@ else:
     
     if st.button("📄 Generate PDF", type="primary", use_container_width=True):
         try:
-            # Import PDF generation functions from main app
-            from reportlab.lib.pagesizes import A4
-            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-            from reportlab.lib.styles import getSampleStyleSheet
-            from reportlab.lib import colors
-            import fitz  # PyMuPDF
-            
-            st.info("📄 PDF generation would happen here. Full implementation requires the generate_customer_pdf function from the original app.")
-            st.warning("Note: PDF generation requires additional code migration. For now, use Excel export.")
-            
+            with st.spinner("Generating PDF..."):
+                pdf_data = generate_customer_pdf(
+                    df, 
+                    customer_name, 
+                    header_pdf_file,
+                    include_custom_table=include_custom_table,
+                    special_rates_pagebreak=special_rates_pagebreak,
+                    special_rates_spacing=special_rates_spacing
+                )
+                
+                if pdf_data:
+                    st.session_state['generated_pdf'] = pdf_data
+                    st.success("✅ PDF generated successfully!")
+                else:
+                    st.error("❌ Failed to generate PDF")
+                    
         except Exception as e:
             st.error(f"PDF generation error: {e}")
+    
+    # Show download button if PDF was generated
+    if st.session_state.get('generated_pdf'):
+        st.download_button(
+            label="📥 Download PDF",
+            data=st.session_state['generated_pdf'],
+            file_name=f"{customer_name}_net_rates_{get_uk_time().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
 
 st.markdown("---")
 
