@@ -20,7 +20,21 @@ if not st.session_state.get("authenticated", False):
     st.warning("🔐 Please log in from the main page first.")
     st.stop()
 
-# Add shared sidebar (save/load/logout)
+# =============================================
+# LOAD PROGRESS - Must happen BEFORE any widgets
+# =============================================
+# Check if there's pending data to apply (set by file uploader below)
+if st.session_state.get('_pending_load_data'):
+    loaded_data = st.session_state.pop('_pending_load_data')
+    # Ensure data is loaded first
+    if not ensure_dataframe_loaded():
+        st.error("❌ Failed to load equipment data.")
+        st.stop()
+    df = st.session_state['df']
+    apply_loaded_data(loaded_data, df)
+    st.toast(f"✅ Loaded progress for: {loaded_data.get('customer_name', 'Unknown')}")
+
+# Add shared sidebar (save/logout)
 add_shared_sidebar()
 
 # Ensure data is loaded
@@ -278,11 +292,11 @@ with col2:
             try:
                 uploaded_file.seek(0)
                 loaded_data = json.load(uploaded_file)
-                apply_loaded_data(loaded_data, df)
-                st.success("✅ Progress loaded!")
+                # Store in session state and rerun - will be applied at top of page
+                st.session_state['_pending_load_data'] = loaded_data
                 st.rerun()
             except Exception as e:
-                st.error(f"Error loading: {e}")
+                st.error(f"Error reading file: {e}")
 
 # -------------------------------
 # Summary Stats
