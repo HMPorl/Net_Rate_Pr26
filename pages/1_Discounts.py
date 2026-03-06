@@ -31,6 +31,11 @@ if st.session_state.get('_pending_load_data'):
         st.error("❌ Failed to load equipment data.")
         st.stop()
     df = st.session_state['df']
+    
+    # DEBUG: Show what we're loading
+    st.info(f"Loading: global_discount={loaded_data.get('global_discount')}, "
+            f"group_discounts count={len(loaded_data.get('group_discounts', {}))}")
+    
     apply_loaded_data(loaded_data, df)
     st.toast(f"✅ Loaded progress for: {loaded_data.get('customer_name', 'Unknown')}")
 

@@ -345,14 +345,17 @@ def create_save_data(customer_name, df):
             if price_value:
                 custom_prices[item_key] = price_value
     
+    # Capture group discounts (exclude global_discount itself)
+    group_discounts = {
+        key: st.session_state[key]
+        for key in st.session_state
+        if key.endswith("_discount") and key != "global_discount"
+    }
+    
     return {
         "customer_name": customer_name,
         "global_discount": global_discount,
-        "group_discounts": {
-            key: st.session_state[key]
-            for key in st.session_state
-            if key.endswith("_discount")
-        },
+        "group_discounts": group_discounts,
         "custom_prices": custom_prices,
         "transport_charges": {
             key: st.session_state[key]
