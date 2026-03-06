@@ -13,7 +13,7 @@ from utils import (
     create_admin_dataframe, create_transport_dataframe, create_save_data,
     TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES, SCRIPT_DIR,
     SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, is_poa_value, calculate_discount_percent,
-    generate_customer_pdf
+    generate_customer_pdf, add_shared_sidebar
 )
 
 # Initialize session state
@@ -23,6 +23,9 @@ initialize_session_state()
 if not st.session_state.get("authenticated", False):
     st.warning("🔐 Please log in from the main page first.")
     st.stop()
+
+# Add shared sidebar (save/load/logout)
+add_shared_sidebar()
 
 # Ensure data is loaded
 if not ensure_dataframe_loaded():

@@ -18,7 +18,7 @@ st.set_page_config(
 # Import shared utilities
 # -------------------------------
 from utils import (
-    initialize_session_state, ensure_dataframe_loaded
+    initialize_session_state, ensure_dataframe_loaded, add_shared_sidebar
 )
 
 # Initialize session state
@@ -117,21 +117,6 @@ def home_page():
     st.markdown("---")
     st.markdown("*Net Rates Calculator v2.0 - Multi-Page Edition - The Hireman*")
 
-# -------------------------------
-# Sidebar with logout
-# -------------------------------
-def add_sidebar():
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### 🔐 Session")
-        if st.button("🚪 Logout", use_container_width=True):
-            st.session_state.authenticated = False
-            st.rerun()
-        
-        st.markdown("---")
-        st.markdown("*Net Rates Calculator v2.0*")
-        st.markdown("*Multi-Page Edition*")
-        st.markdown("*The Hireman*")
 
 # -------------------------------
 # Main App Logic
@@ -139,8 +124,8 @@ def add_sidebar():
 if not st.session_state.get("authenticated", False):
     login_page()
 else:
-    # Add sidebar with logout
-    add_sidebar()
+    # Add shared sidebar (save/load/logout)
+    add_shared_sidebar()
     
     # Show home page content
     home_page()

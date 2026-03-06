@@ -9,7 +9,7 @@ import json
 from utils import (
     initialize_session_state, ensure_dataframe_loaded, get_available_pdf_files,
     TRANSPORT_TYPES, DEFAULT_TRANSPORT_CHARGES, SCRIPT_DIR, get_uk_time,
-    create_save_data, apply_loaded_data
+    create_save_data, apply_loaded_data, add_shared_sidebar
 )
 
 # Initialize session state
@@ -19,6 +19,9 @@ initialize_session_state()
 if not st.session_state.get("authenticated", False):
     st.warning("🔐 Please log in from the main page first.")
     st.stop()
+
+# Add shared sidebar (save/load/logout)
+add_shared_sidebar()
 
 # Ensure data is loaded
 if not ensure_dataframe_loaded():

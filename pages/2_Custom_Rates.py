@@ -6,7 +6,7 @@ import pandas as pd
 from utils import (
     initialize_session_state, ensure_dataframe_loaded,
     is_poa_value, get_numeric_price, format_price_display,
-    get_discounted_price, calculate_discount_percent
+    get_discounted_price, calculate_discount_percent, add_shared_sidebar
 )
 
 # Initialize session state
@@ -16,6 +16,9 @@ initialize_session_state()
 if not st.session_state.get("authenticated", False):
     st.warning("🔐 Please log in from the main page first.")
     st.stop()
+
+# Add shared sidebar (save/load/logout)
+add_shared_sidebar()
 
 # Ensure data is loaded
 if not ensure_dataframe_loaded():

@@ -390,6 +390,63 @@ def apply_loaded_data(loaded_data, df):
 
 
 # -------------------------------
+# Shared Sidebar Function
+# -------------------------------
+def add_shared_sidebar():
+    """Add shared sidebar content (Save/Load/Logout) - call from every page"""
+    with st.sidebar:
+        # Save/Load Progress Section
+        st.markdown("### 💾 Progress")
+        
+        df = st.session_state.get('df')
+        customer_name = st.session_state.get('customer_name', '')
+        
+        # Save Progress Button
+        if df is not None:
+            save_data = create_save_data(customer_name or "Unsaved", df)
+            json_data = json.dumps(save_data, indent=2)
+            timestamp = get_uk_time().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"{customer_name or 'progress'}_{timestamp}.json"
+            
+            st.download_button(
+                label="💾 Save Progress",
+                data=json_data,
+                file_name=filename,
+                mime="application/json",
+                use_container_width=True,
+                help="Download your current progress as a JSON file"
+            )
+        
+        # Load Progress
+        uploaded_file = st.file_uploader(
+            "📂 Load Progress",
+            type=["json"],
+            key="sidebar_progress_upload",
+            help="Upload a previously saved JSON file"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                loaded_data = json.load(uploaded_file)
+                if df is not None:
+                    apply_loaded_data(loaded_data, df)
+                    st.success(f"✅ Loaded: {loaded_data.get('customer_name', 'Unknown')}")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"❌ Failed to load: {e}")
+        
+        st.markdown("---")
+        st.markdown("### 🔐 Session")
+        if st.button("🚪 Logout", use_container_width=True):
+            st.session_state.authenticated = False
+            st.rerun()
+        
+        st.markdown("---")
+        st.markdown("*Net Rates Calculator v2.0*")
+        st.markdown("*The Hireman*")
+
+
+# -------------------------------
 # PDF Generation Functions
 # -------------------------------
 def add_footer_logo(canvas, doc):
